@@ -23,6 +23,11 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.jspecify.annotations.Nullable;
+import org.springframework.aot.hint.MemberCategory;
+import org.springframework.aot.hint.RuntimeHints;
+import org.springframework.aot.hint.RuntimeHintsRegistrar;
+import org.springframework.context.annotation.ImportRuntimeHints;
 
 @NoArgsConstructor
 @Data
@@ -45,7 +50,7 @@ public class User implements Serializable {
   @Column(nullable = false)
   private String password;
 
-  @Size(min = 4, max = 40)
+  @Size(min = 5, max = 40)
   @Column(name = "full_name", nullable = false)
   private String fullName;
 
@@ -101,4 +106,17 @@ public class User implements Serializable {
     USER, ADMIN
   }
 
+}
+
+@ImportRuntimeHints(value = UserRuntimeHints.class)
+class UserRuntimeHints implements RuntimeHintsRegistrar {
+
+  @Override
+  public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
+    hints.reflection().registerType(
+        User.class,
+        MemberCategory.INVOKE_DECLARED_CONSTRUCTORS,
+        MemberCategory.INVOKE_DECLARED_METHODS,
+        MemberCategory.ACCESS_DECLARED_FIELDS);
+  }
 }

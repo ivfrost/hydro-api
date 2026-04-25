@@ -1,26 +1,29 @@
 package dev.ivfrost.hydro_backend.users.internal;
 
+import com.auth0.jwt.interfaces.Claim;
 import dev.ivfrost.hydro_backend.devices.DeviceLinkRequest;
 import dev.ivfrost.hydro_backend.devices.DeviceResponse;
-import dev.ivfrost.hydro_backend.exception.UserDisabledException;
-import dev.ivfrost.hydro_backend.exception.UsernameTakenException;
 import dev.ivfrost.hydro_backend.tokens.JWTUtil;
+import dev.ivfrost.hydro_backend.tokens.MqttTokenPayload;
+import dev.ivfrost.hydro_backend.tokens.TokenPayload;
 import dev.ivfrost.hydro_backend.tokens.TokenResponse;
+import dev.ivfrost.hydro_backend.users.BlobStorageService;
 import dev.ivfrost.hydro_backend.users.DeviceTopicProvider;
 import dev.ivfrost.hydro_backend.users.UserAuthRequest;
 import dev.ivfrost.hydro_backend.users.UserDeviceProvider;
+import dev.ivfrost.hydro_backend.users.UserDisabledException;
 import dev.ivfrost.hydro_backend.users.UserMqttResponse;
-import dev.ivfrost.hydro_backend.users.UserMqttTokenPayload;
 import dev.ivfrost.hydro_backend.users.UserRecoveryRequest;
 import dev.ivfrost.hydro_backend.users.UserRefreshRequest;
 import dev.ivfrost.hydro_backend.users.UserRegisterRequest;
 import dev.ivfrost.hydro_backend.users.UserRegisterResponse;
 import dev.ivfrost.hydro_backend.users.UserResponse;
-import dev.ivfrost.hydro_backend.users.UserTokenPayload;
 import dev.ivfrost.hydro_backend.users.UserTokenProvider;
 import dev.ivfrost.hydro_backend.users.UserUpdateLastOnlineEvent;
 import dev.ivfrost.hydro_backend.users.UserUpdateRequest;
+import dev.ivfrost.hydro_backend.users.UsernameTakenException;
 import jakarta.transaction.Transactional;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,6 +44,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @AllArgsConstructor
@@ -57,6 +61,8 @@ public class UserService {
   private final ApplicationEventPublisher events;
   private final UserDeviceProvider userDeviceProvider;
   private final dev.ivfrost.hydro_backend.devices.DeviceLinkProvider deviceLinkProvider;
+  private final BlobStorageService blobStorageService;
+
 
   /**
    * Authenticates a user by email and password.
@@ -85,7 +91,7 @@ public class UserService {
       log.debug("Password mismatch for user with email: {}", email);
       throw new BadCredentialsException("Either email or password is incorrect.");
     }
-    return userTokenProvider.generateAccessTokens(new UserTokenPayload(
+    return userTokenProvider.generateAccessTokens(new TokenPayload(
         user.getUsername(),
         user.getEmail(),
         user.getRoles().stream().map(Enum::name).toList(),
@@ -119,7 +125,6 @@ public class UserService {
 
     return userTokenProvider.generateRecoveryTokens(savedUser.getId());
   }
-
 
   /**
    * Registers a new user with default roles (self-registration).
@@ -267,13 +272,16 @@ public class UserService {
    * @throws UserDisabledException                      if the user is disabled
    */
   @Transactional
-  UserResponse updateCurrentUser(UserUpdateRequest req) {
+  UserResponse updateCurrentUser(UserUpdateRequest req, MultipartFile profilePicture) {
     Long userId = getCurrentUser().getId();
     User user = userRepository.findById(userId)
         .orElseThrow(() -> new AuthenticationCredentialsNotFoundException(
             "User with ID " + userId + " not found."));
     if (!user.isEnabled()) {
       throw new UserDisabledException(userId);
+    }
+    if (req.username() != null && !req.username().isBlank()) {
+      user.setUsername(req.username());
     }
     if (req.fullName() != null && !req.fullName().isBlank()) {
       user.setFullName(req.fullName());
@@ -287,9 +295,16 @@ public class UserService {
     if (req.address() != null) {
       user.setAddress(req.address());
     }
-    if (req.profilePictureUrl() != null) {
-      user.setProfilePictureUrl(req.profilePictureUrl());
+    if (profilePicture != null && !profilePicture.isEmpty()) {
+      String key = null;
+      try {
+        key = blobStorageService.save(profilePicture, userId);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+      user.setProfilePictureUrl(key);
     }
+
     if (req.preferredLanguage() != null && !req.preferredLanguage().isBlank()) {
       user.setPreferredLanguage(req.preferredLanguage());
     }
@@ -310,14 +325,15 @@ public class UserService {
   List<TokenResponse> refreshTokens(UserRefreshRequest req) {
     User user = getCurrentUser();
 
-    Map<String, String> claims = userTokenProvider.validateTokenAndRetrieveClaims(
+    Map<String, Claim> claims = userTokenProvider.validateTokenAndRetrieveClaims(
         req.refreshToken());
-    String tokenUsername = claims.get("username");
+    Long tokenUserId = claims.get("userId").asLong();
 
-    if (!user.getUsername().equals(tokenUsername)) {
+    if (!user.getId().equals(tokenUserId)) {
       throw new BadCredentialsException("Refresh token does not belong to authenticated user");
     }
-    return userTokenProvider.generateAccessTokens(new UserTokenPayload(
+
+    return userTokenProvider.generateAccessTokens(new TokenPayload(
         user.getUsername(),
         user.getEmail(),
         user.getRoles().stream().map(Enum::name).toList(),
@@ -336,8 +352,10 @@ public class UserService {
     User user = getCurrentUser();
     List<String> topics = userDeviceTopicProvider.getTopicsForUser(user.getId());
     log.debug("Retrieved {} topics for user {}: {}", topics.size(), user.getId(), topics);
-    return new UserMqttResponse(user.getId(),
-        jwtUtil.generateMqttToken(new UserMqttTokenPayload(user.getId(), topics)));
+    return new UserMqttResponse(user.getId(), jwtUtil.generateMqttToken(new MqttTokenPayload(
+        user.getId(),
+        topics
+    )));
   }
 
   /**
@@ -359,6 +377,17 @@ public class UserService {
    */
   List<DeviceResponse> getDevicesForCurrentUser() {
     return userDeviceProvider.getUserDevices(getCurrentUserId());
+  }
+
+  boolean validateUsernameEmail(String username, String email) {
+    if (username != null && !username.isBlank() && userRepository.findByUsername(username)
+        .isEmpty()) {
+      return true;
+    }
+    if (email != null && !email.isBlank() && userRepository.findByEmail(email).isEmpty()) {
+      return true;
+    }
+    return false;
   }
 
   /*====== REDIS STATE ======*/

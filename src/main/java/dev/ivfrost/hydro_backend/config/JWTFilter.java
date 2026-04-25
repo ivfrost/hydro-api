@@ -21,12 +21,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Slf4j
 @AllArgsConstructor
-@Component
 public class JWTFilter extends OncePerRequestFilter {
 
   private final UserDetailsService userDetailsService;
@@ -72,42 +70,33 @@ public class JWTFilter extends OncePerRequestFilter {
         }
 
         log.trace("JWT claims keys: {}", claims.keySet());
-        String username = claims.get("username").asString();
-        if (username == null || username.isBlank()) {
-          log.warn("JWT contains no username/subject");
+        Long userId = claims.get("userId").asLong();
+        if (userId == null) {
+          log.warn("JWT contains no userId");
           response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid JWT Token");
           return;
         }
-        String role = claims.get("role") != null ? claims.get("role").asString() : null;
-        log.trace("JWT username: {}, role: {}", username, role);
 
-        // Load User Details
-        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-        log.trace("Loaded userDetails for {}. Authorities: {}", username,
+        UserDetails userDetails = userDetailsService.loadUserByUsername(String.valueOf(userId));
+        log.trace("Loaded userDetails for id {}. Authorities: {}", userId,
             userDetails.getAuthorities());
 
-        // If the user is disabled (soft-deleted or inactive), deny access now
         if (!userDetails.isEnabled()) {
-          log.info("Rejected authentication for disabled/deleted user: {}", username);
+          log.info("Rejected authentication for disabled/deleted user id: {}", userId);
           response.sendError(HttpServletResponse.SC_FORBIDDEN, "User account is disabled");
           return;
         }
 
-        // Update user's last online timestamp
-//        events.publishEvent(new UserUpdateLastOnlineEvent(username));
-
-        // Use authorities from userDetails (database), not JWT
         UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
             userDetails,
-            null, userDetails.getAuthorities());
+            null,
+            userDetails.getAuthorities());
 
-        // Set authentication in security context
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
           SecurityContextHolder.getContext().setAuthentication(authToken);
-          log.debug("Authentication set in security context for user: {}", username);
-        } else {
-          log.debug("Authentication already present in security context for user: {}", username);
+          log.debug("Authentication set in security context for userId: {}", userId);
         }
+
       } catch (JWTVerificationException e) {
         log.warn("JWT verification failed: {}", e.getMessage());
         response.setStatus(HttpStatus.UNAUTHORIZED.value());

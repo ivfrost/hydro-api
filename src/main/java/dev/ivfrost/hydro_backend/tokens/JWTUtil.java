@@ -8,8 +8,6 @@ import com.auth0.jwt.exceptions.JWTDecodeException;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
-import dev.ivfrost.hydro_backend.users.UserMqttTokenPayload;
-import dev.ivfrost.hydro_backend.users.UserTokenPayload;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,11 +40,11 @@ public class JWTUtil {
   private Long jwtRefreshExpirationMs;
   @Value("${mqtt.jwt.private.key.path}")
   private String mqttJwtPrivateKeyPath;
-  @Value("${mqtt.jwt.expiration-ms}")
+  @Value("${mqtt.jwt.expiration.ms}")
   private Long mqttJwtExpirationMs;
 
   // Build JWT token for authentication
-  public JWTCreator.Builder buildAccessToken(UserTokenPayload payload) throws JWTCreationException {
+  public JWTCreator.Builder buildAccessToken(TokenPayload payload) throws JWTCreationException {
     List<String> roles = (payload.roles() == null) ? List.of() : payload.roles()
         .stream()
         .map(String::toUpperCase)
@@ -54,6 +52,7 @@ public class JWTUtil {
 
     return JWT.create()
         .withSubject(AUTH_TOKEN_SUBJECT)
+        .withClaim("userId", payload.userId())
         .withClaim("username", payload.username())
         .withClaim("email", payload.email())
         .withClaim("roles", roles)
@@ -78,7 +77,7 @@ public class JWTUtil {
   }
 
   // Create auth JWT token
-  public String generateAccessToken(UserTokenPayload payload) {
+  public String generateAccessToken(TokenPayload payload) {
     JWTCreator.Builder builder;
     try {
       builder = buildAccessToken(payload);
@@ -100,9 +99,10 @@ public class JWTUtil {
   }
 
   // Build JWT token for MQTT authentication
-  public JWTCreator.Builder buildMqttToken(UserMqttTokenPayload payload)
+  public JWTCreator.Builder buildMqttToken(MqttTokenPayload payload)
       throws JWTCreationException {
-    log.debug("Building MQTT token for userId: {}, topics: {}", payload.userId(), payload.topics());
+    log.debug("Building MQTT token for userId/deviceId: {}, topics: {}", payload.userId(),
+        payload.topics());
     return JWT.create()
         .withSubject(payload.userId().toString())
         .withClaim("subs", payload.topics())
@@ -127,13 +127,13 @@ public class JWTUtil {
   }
 
   // Create long-lived auth refresh JWT token for obtaining new short-lived tokens
-  public String generateRefreshToken(UserTokenPayload payload) {
+  public String generateRefreshToken(TokenPayload payload) {
     JWTCreator.Builder builder = buildAccessToken(payload);
     return signAccessToken(builder, jwtRefreshExpirationMs);
   }
 
   // Create a short-lived MQTT auth JWT token
-  public String generateMqttToken(UserMqttTokenPayload payload) {
+  public String generateMqttToken(MqttTokenPayload payload) {
     JWTCreator.Builder builder;
     try {
       builder = buildMqttToken(payload);
@@ -142,6 +142,16 @@ public class JWTUtil {
       throw e;
     }
     return signMqttToken(builder, mqttJwtExpirationMs);
+  }
+
+  // Create a MQTT auth JWT token for use by devices
+  public String generateDeviceMqttToken(DeviceMqttTokenPayload payload) {
+    return generateMqttToken(
+        new MqttTokenPayload(
+            payload.deviceId(),
+            List.of("hydro/" + payload.secret() + "/#")
+        )
+    );
   }
 
   public Map<String, Claim> validateTokenAndRetrieveClaims(String token)
@@ -172,6 +182,10 @@ public class JWTUtil {
 
   public Instant getRefreshTokenExpiryDate() {
     return Instant.now().plus(jwtRefreshExpirationMs, ChronoUnit.MILLIS);
+  }
+
+  public Instant getMqttTokenExpiryDate() {
+    return Instant.now().plus(mqttJwtExpirationMs, ChronoUnit.MILLIS);
   }
 
   private RSAPrivateKey loadPrivateKeyFromFile(String path) {

@@ -1,5 +1,8 @@
 package dev.ivfrost.hydro_backend.users;
 
+import com.auth0.jwt.interfaces.Claim;
+import dev.ivfrost.hydro_backend.tokens.MqttTokenPayload;
+import dev.ivfrost.hydro_backend.tokens.TokenPayload;
 import dev.ivfrost.hydro_backend.tokens.TokenResponse;
 import java.util.List;
 import java.util.Map;
@@ -10,7 +13,9 @@ public interface UserTokenProvider {
 
   List<TokenResponse> generateRecoveryTokens(long userId);
 
-  List<TokenResponse> generateAccessTokens(UserTokenPayload payload);
+  List<TokenResponse> generateAccessTokens(TokenPayload payload);
 
-  Map<String, String> validateTokenAndRetrieveClaims(String token);
+  TokenResponse generateMqttToken(MqttTokenPayload payload);
+
+  Map<String, Claim> validateTokenAndRetrieveClaims(String token);
 }

@@ -1,8 +1,6 @@
 package dev.ivfrost.hydro_backend.devices.internal;
 
-import dev.ivfrost.hydro_backend.tokens.DeviceSecretConverter;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -14,6 +12,7 @@ import jakarta.validation.constraints.Size;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -35,6 +34,9 @@ public class Device implements Serializable {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private long id;
+
+  @Column(nullable = false, unique = true)
+  private String key;
 
   @Size(max = 17, min = 17)
   @Column(nullable = false, name = "mac_address", unique = true)
@@ -58,9 +60,8 @@ public class Device implements Serializable {
 
 
   @Size(max = 255)
-  @Column(name = "secret")
-  @Convert(converter = DeviceSecretConverter.class)
-  private String secret;
+  @Column(name = "secret_hash")
+  private String secretHash;
 
   @Pattern(regexp = "^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$")
   @Size(max = 15)
@@ -89,8 +90,11 @@ public class Device implements Serializable {
 
   @PrePersist
   protected void onCreate() {
-    this.createdAt = Instant.now();
-    this.updatedAt = Instant.now();
-    this.lastSeen = Instant.now();
+    if (this.key == null) {
+      this.key = UUID.randomUUID().toString();
+    }
+    if (this.lastSeen == null) {
+      this.lastSeen = Instant.now();
+    }
   }
 }

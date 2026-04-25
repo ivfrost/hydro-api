@@ -1,28 +1,51 @@
 package dev.ivfrost.hydro_backend.users;
 
-import java.io.Serial;
-import java.io.Serializable;
+import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class UserResponse implements Serializable {
+public class UserResponse {
 
-  @Serial
-  private static final long serialVersionUID = 1L;
+  @NotNull
   Long id;
+
+  @NotNull
   String username;
+
+  @NotNull
   String fullName;
+
+  @NotNull
   String email;
+
+  // must be present (not null) but may be empty string
+  @NotNull
   String profilePictureUrl;
+
+  // must be present (not null) but may be empty string
+  @NotNull
   String phoneNumber;
+
+  @NotNull
   String address;
+
+  @NotNull
   Instant createdAt;
+
+  @NotNull
   Instant updatedAt;
-  List<String> roles;
+
+  @NotNull
+  List<String> roles = new ArrayList<>();
+
+  @NotNull
   String preferredLanguage;
+
+  @NotNull
   String settings;
 }

@@ -1,4 +1,4 @@
-package dev.ivfrost.hydro_backend.exception;
+package dev.ivfrost.hydro_backend.tokens.internal;
 
 /**
  * Custom exception for encryption/decryption errors

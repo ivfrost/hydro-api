@@ -1,4 +1,4 @@
-package dev.ivfrost.hydro_backend.exception;
+package dev.ivfrost.hydro_backend.devices.internal;
 
 public class HmacEncodingException extends RuntimeException {
 

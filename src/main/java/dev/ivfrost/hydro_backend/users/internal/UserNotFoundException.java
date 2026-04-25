@@ -1,4 +1,4 @@
-package dev.ivfrost.hydro_backend.exception;
+package dev.ivfrost.hydro_backend.users.internal;
 
 public class UserNotFoundException extends RuntimeException {
 

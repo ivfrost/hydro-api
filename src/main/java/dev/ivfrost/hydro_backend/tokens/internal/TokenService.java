@@ -1,15 +1,17 @@
 package dev.ivfrost.hydro_backend.tokens.internal;
 
 import com.auth0.jwt.interfaces.Claim;
+import dev.ivfrost.hydro_backend.tokens.DeviceMqttTokenPayload;
+import dev.ivfrost.hydro_backend.tokens.DeviceTokenResponse;
 import dev.ivfrost.hydro_backend.tokens.JWTUtil;
+import dev.ivfrost.hydro_backend.tokens.MqttTokenPayload;
 import dev.ivfrost.hydro_backend.tokens.RecoveryCodeUtil;
+import dev.ivfrost.hydro_backend.tokens.TokenPayload;
 import dev.ivfrost.hydro_backend.tokens.TokenResponse;
 import dev.ivfrost.hydro_backend.tokens.internal.Token.TokenType;
-import dev.ivfrost.hydro_backend.users.UserTokenPayload;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -29,7 +31,7 @@ public class TokenService {
     return true;
   }
 
-  public List<TokenResponse> generateAccessTokens(UserTokenPayload payload) {
+  public List<TokenResponse> generateAccessTokens(TokenPayload payload) {
     return List.of(
         new TokenResponse(
             jWTUtil.generateAccessToken(payload),
@@ -67,19 +69,27 @@ public class TokenService {
         .toList();
   }
 
-  public Map<String, String> validateTokenAndRetrieveClaims(String token) {
-    Map<String, Claim> claims = jWTUtil.validateTokenAndRetrieveClaims(token);
-    return claims.entrySet().stream()
-        .collect(Collectors.toMap(
-            Map.Entry::getKey,
-            entry -> {
-              if (entry.getValue() == null || entry.getValue().isMissing() || entry.getValue()
-                  .isNull()) {
-                return "";
-              }
-              String strValue = entry.getValue().asString();
-              return strValue != null ? strValue : String.valueOf(entry.getValue());
-            }
-        ));
+  public Map<String, Claim> validateTokenAndRetrieveClaims(String token) {
+    return jWTUtil.validateTokenAndRetrieveClaims(token);
+  }
+  
+  public TokenResponse generateMqttToken(MqttTokenPayload payload) {
+    String token = jWTUtil.generateMqttToken(payload);
+    return new TokenResponse(
+        token,
+        TokenType.MQTT_TOKEN.toString(),
+        jWTUtil.getMqttTokenExpiryDate(),
+        payload.userId()
+    );
+  }
+
+  public DeviceTokenResponse generateDeviceMqttToken(DeviceMqttTokenPayload payload) {
+    String token = jWTUtil.generateDeviceMqttToken(payload);
+    return new DeviceTokenResponse(
+        token,
+        TokenType.DEVICE_MQTT_TOKEN.toString(),
+        jWTUtil.getMqttTokenExpiryDate(),
+        payload.deviceId()
+    );
   }
 }

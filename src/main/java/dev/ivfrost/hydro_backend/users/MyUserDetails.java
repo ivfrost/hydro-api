@@ -36,9 +36,13 @@ public class MyUserDetails implements UserDetails {
     return String.valueOf(user.getId());
   }
 
+  public Long getUserId() {
+    return user.getId();
+  }
+
   @Override
   public boolean isEnabled() {
     return user.isEnabled();
   }
-
 }
+

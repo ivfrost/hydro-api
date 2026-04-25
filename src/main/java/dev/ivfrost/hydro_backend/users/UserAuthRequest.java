@@ -1,17 +1,19 @@
 package dev.ivfrost.hydro_backend.users;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.Schema.RequiredMode;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 public record UserAuthRequest(
 
-    @NotNull(message = "Email is required")
-    @Email(message = "Invalid email")
+    @NotBlank
+    @Email
+    @Schema(requiredMode = RequiredMode.REQUIRED)
     String email,
 
-    @NotNull(message = "Password is required")
     @NotBlank
+    @Schema(requiredMode = RequiredMode.REQUIRED)
     String password) {
 
 }

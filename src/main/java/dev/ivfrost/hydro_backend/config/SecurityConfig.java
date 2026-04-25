@@ -2,6 +2,7 @@ package dev.ivfrost.hydro_backend.config;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
+import dev.ivfrost.hydro_backend.tokens.JWTUtil;
 import dev.ivfrost.hydro_backend.users.MyUserDetailsService;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
@@ -9,6 +10,7 @@ import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -33,7 +35,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
   private final MyUserDetailsService userDetailsService;
-  private final JWTFilter jwtFilter;
+  private final JWTUtil jwtUtil;
+  private final ApplicationEventPublisher events;
   @Value("${cors.allowed-origins}")
   private String[] allowedOrigins;
 
@@ -47,8 +50,8 @@ public class SecurityConfig {
         // Disable frame options for H2 console in dev
         .headers(h -> h.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable))
         // Run JWTFilter in place of UsernamePasswordAuthenticationFilter
-//        .addFilterBefore(authRequestCountFilter, UsernamePasswordAuthenticationFilter.class)
-        .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+        .addFilterBefore(new JWTFilter(userDetailsService, jwtUtil, events),
+            UsernamePasswordAuthenticationFilter.class)
         .authorizeHttpRequests(req -> req
             .requestMatchers(EndpointRegistry.H2_CONSOLE.toArray(new String[0]))
             .permitAll()

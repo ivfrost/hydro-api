@@ -1,10 +1,9 @@
 package dev.ivfrost.hydro_backend.devices.internal;
 
+import dev.ivfrost.hydro_backend.devices.DeviceProvisionResponse;
 import dev.ivfrost.hydro_backend.devices.DeviceResponse;
 import java.util.List;
-import org.springframework.stereotype.Component;
 
-@Component
 class DeviceUtil {
 
   private DeviceUtil() {
@@ -41,4 +40,14 @@ class DeviceUtil {
     return devices.stream().map(DeviceUtil::convertDeviceToResponse).toList();
   }
 
+  public static DeviceProvisionResponse convertProvisionDeviceToResponse(Device device,
+      String rawSecret) {
+    if (device == null) {
+      return null;
+    }
+    return new DeviceProvisionResponse(
+        convertDeviceToResponse(device),
+        rawSecret
+    );
+  }
 }

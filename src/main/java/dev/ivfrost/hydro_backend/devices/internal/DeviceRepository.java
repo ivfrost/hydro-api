@@ -10,5 +10,4 @@ public interface DeviceRepository extends JpaRepository<Device, Long> {
   List<Device> findAllByUserIdIsNull();
 
   List<Device> findAllByUserId(Long userId);
-
 }

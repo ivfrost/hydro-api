@@ -22,7 +22,7 @@ class UserDeviceProviderImpl implements UserDeviceProvider {
   }
 
   @Override
-  public DeviceResponse updateUserDevice(DeviceUpdateRequest req) {
-    return deviceService.updateDeviceDetails(req);
+  public DeviceResponse updateUserDevice(long deviceId, DeviceUpdateRequest req) {
+    return deviceService.updateDeviceDetails(deviceId, req);
   }
 }

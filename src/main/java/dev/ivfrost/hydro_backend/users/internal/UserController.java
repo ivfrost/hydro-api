@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.AllArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,7 +31,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Users Module", description = "API endpoints for user management and authentication")
 @AllArgsConstructor
@@ -69,6 +72,20 @@ public class UserController {
         ));
   }
 
+  @Operation(
+      summary = "Check if username or email is available",
+      description = "Checks if a username or email is available for registration."
+  )
+  @GetMapping(value = "/users/validate")
+  public ResponseEntity<ApiResponse<Boolean>> validateUsernameEmail(
+      @Nullable String username,
+      @Nullable String email) {
+    return ResponseEntity.status(HttpStatus.OK)
+        .body(ApiResponse.success(HttpStatus.OK, "Validation completed successfully",
+            userService.validateUsernameEmail(username, email)
+        ));
+  }
+
   // ======= AUTHENTICATED USERS ENDPOINTS =======
 
   /**
@@ -97,12 +114,14 @@ public class UserController {
    */
   @Operation(summary = "Update user's account settings",
       description = "Updates the account settings of the currently authenticated user.")
-  @PutMapping("/me")
+  @PutMapping(value = "/me", consumes = "multipart/form-data")
   public ResponseEntity<ApiResponse<UserResponse>> updateCurrentUser(
-      @Valid @RequestBody UserUpdateRequest userUpdateRequest) {
+      @RequestPart("data") UserUpdateRequest userUpdateRequest,
+      @RequestPart(value = "profilePicture", required = false) MultipartFile profilePicture
+  ) {
     return ResponseEntity.status(HttpStatus.OK)
         .body(ApiResponse.success(HttpStatus.OK, "User profile updated successfully",
-            userService.updateCurrentUser(userUpdateRequest)));
+            userService.updateCurrentUser(userUpdateRequest, profilePicture)));
   }
 
   /**

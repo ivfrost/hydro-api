@@ -1,6 +1,6 @@
 package dev.ivfrost.hydro_backend.tokens.internal;
 
-import dev.ivfrost.hydro_backend.tokens.EncryptionUtil;
+import dev.ivfrost.hydro_backend.devices.EncryptionUtil;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 import lombok.RequiredArgsConstructor;

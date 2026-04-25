@@ -11,9 +11,10 @@ public class EndpointRegistry {
       "/v1/users",
       "/v1/users/auth",
       "/v1/users/recover",
+      "/v1/users/validate/**",
       "/v1/users/password/reset",
       "/v1/validation/**",
-      "/v1/health"
+      "/actuator/**"
   );
   static final List<String> SWAGGER = List.of(
       "/v3/api-docs",
@@ -24,6 +25,7 @@ public class EndpointRegistry {
   static final List<String> APP_AUTHENTICATED = List.of(
       "/v1/users/**",
       "/v1/me/**",
+      "/v1/files/**", // !TODO: make this user specific
       "/v1/users/auth/refresh"
   );
   static final List<String> H2_CONSOLE = List.of(

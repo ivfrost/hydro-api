@@ -1,4 +1,4 @@
-package dev.ivfrost.hydro_backend.exception;
+package dev.ivfrost.hydro_backend.devices;
 
 public class DeviceNotFoundException extends RuntimeException {
 

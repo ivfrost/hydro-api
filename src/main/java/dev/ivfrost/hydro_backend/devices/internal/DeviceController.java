@@ -3,9 +3,13 @@ package dev.ivfrost.hydro_backend.devices.internal;
 import dev.ivfrost.hydro_backend.ApiResponse;
 import dev.ivfrost.hydro_backend.devices.DeviceAuthRequest;
 import dev.ivfrost.hydro_backend.devices.DeviceLinkRequest;
+import dev.ivfrost.hydro_backend.devices.DeviceOrderSaveRequest;
 import dev.ivfrost.hydro_backend.devices.DeviceProvisionRequest;
+import dev.ivfrost.hydro_backend.devices.DeviceProvisionResponse;
 import dev.ivfrost.hydro_backend.devices.DeviceResponse;
 import dev.ivfrost.hydro_backend.devices.DeviceUpdateRequest;
+import dev.ivfrost.hydro_backend.tokens.DeviceTokenResponse;
+import dev.ivfrost.hydro_backend.users.MyUserDetails;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -77,7 +82,7 @@ public class DeviceController {
   @PreAuthorize("hasRole('ADMIN')")
   @Operation(summary = "Provision new device (Admin only)", description = "Provisions a new device in the system.")
   @PostMapping("/devices")
-  public ResponseEntity<ApiResponse<DeviceResponse>> provisionDevice(
+  public ResponseEntity<ApiResponse<DeviceProvisionResponse>> provisionDevice(
       @RequestBody @Valid DeviceProvisionRequest req) {
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(ApiResponse.success(HttpStatus.CREATED, "Device provisioned successfully",
@@ -93,7 +98,7 @@ public class DeviceController {
       (@RequestBody @Valid DeviceUpdateRequest req, @PathVariable Long deviceId) {
     return ResponseEntity.status(HttpStatus.OK)
         .body(ApiResponse.success(HttpStatus.OK, "Device updated successfully",
-            deviceService.updateDeviceDetails(req)));
+            deviceService.updateDeviceDetails(deviceId, req)));
   }
 
   @Hidden
@@ -139,38 +144,70 @@ public class DeviceController {
         ApiResponse.success(HttpStatus.OK, "Device secret regenerated successfully", response));
   }
 
-//  @Operation(summary = "Get device order from Redis for authenticated user",
-//      description = "Retrieves the device order stored in Redis for the currently authenticated user.")
-//  @GetMapping("/me/devices/order")
-//  public ResponseEntity<ApiResponse<DeviceOrderResponse>> getDeviceOrderFromCurrentUser() {
-//    Map<String, Long> deviceOrderMap = deviceStateService.getDeviceOrderFromCurrentUser();
-//    return ResponseEntity.status(HttpStatus.OK)
-//        .body(ApiResponse.success(HttpStatus.OK, "Device order retrieved successfully",
-//            new DeviceOrderResponse(deviceOrderMap)));
-//  }
+  @Operation(summary = "Update live device order",
+      description = "Updates the live order of devices for the currently authenticated user. This order is stored in Redis and can be persisted to the database using the save endpoint.")
+  @PostMapping("/me/devices/order/live")
+  public ResponseEntity<ApiResponse<Void>> updateLiveOrder(
+      @RequestBody DeviceOrderSaveRequest req) {
 
-  @Operation(summary = "Update device friendly friendlyName",
-      description = "Updates the friendly friendlyName of a device linked to the currently authenticated user.")
-  @PutMapping("/me/devices/{deviceId}")
+    deviceService.updateLiveOrder(currentUserId(), req.deviceIds());
+
+    return ResponseEntity.ok(
+        ApiResponse.success(HttpStatus.OK, "Live device order updated successfully")
+    );
+  }
+
+  @Operation(
+      summary = "Persist user device order in database",
+      description = "Commits the device order stored in Redis to the database."
+  )
+  @PutMapping("/me/devices/order/save")
+  public ResponseEntity<ApiResponse<Void>> saveDeviceOrder() {
+    deviceService.persistDeviceOrder(currentUserId());
+    return ResponseEntity.ok(
+        ApiResponse.success(HttpStatus.OK, "Device order persisted to database successfully")
+    );
+  }
+
+
+  @Operation(summary = "Update device friendlyName",
+      description = "Updates the friendlyName of a device linked to the currently authenticated user.")
+  @PutMapping("/me/devices/{deviceId}/friendly-name")
   public ResponseEntity<ApiResponse<DeviceResponse>> updateDeviceNickname(
+      @PathVariable("deviceId") Long deviceId,
       @RequestBody @Valid DeviceUpdateRequest req) {
     return ResponseEntity.status(HttpStatus.OK)
         .body(ApiResponse.success(HttpStatus.OK, "Device nickname updated successfully",
-            deviceService.updateDeviceFriendlyName(req)));
+            deviceService.updateDeviceFriendlyName(deviceId, req)));
+  }
+
+  @Operation(summary = "Update device last seen timestamp", description = "Updates the last seen timestamp of a device linked to the currently authenticated user.")
+  @PutMapping("/me/devices/{deviceId}/last-seen")
+  public ResponseEntity<ApiResponse<Void>> updateDeviceLastSeen(
+      @PathVariable Long deviceId) {
+    deviceService.updateLastSeen(deviceId);
+    return ResponseEntity.status(HttpStatus.OK)
+        .body(
+            ApiResponse.success(HttpStatus.OK, "Device last seen timestamp updated successfully"));
   }
 
   @Operation(summary = "Authenticate device for MQTT",
       description = "Authenticates a device and returns a signed JWT token for MQTT broker authentication. The device uses its ID and secret as credentials.")
   @PostMapping("/devices/auth/mqtt")
-  public ResponseEntity<ApiResponse<Map<String, String>>> authenticateDeviceForMqtt(
+  public ResponseEntity<ApiResponse<DeviceTokenResponse>> authenticateDeviceForMqtt(
       @RequestBody @Valid DeviceAuthRequest req) {
-    String mqttToken = deviceService.getMqttAuthToken(req);
-    Map<String, String> response = Map.of(
-        "deviceId", req.deviceId().toString(),
-        "token", mqttToken
-    );
     return ResponseEntity.status(HttpStatus.OK)
-        .body(ApiResponse.success(HttpStatus.OK, "Device MQTT token generated successfully",
-            response));
+        .body(ApiResponse.success(HttpStatus.OK, "Device authenticated successfully",
+            deviceService.getMqttAuthToken(req)));
+  }
+
+  // Helper method to get the current authenticated user's ID from the security context
+  private Long currentUserId() {
+    return ((MyUserDetails) SecurityContextHolder
+        .getContext()
+        .getAuthentication()
+        .getPrincipal())
+        .getUserId();
   }
 }
+

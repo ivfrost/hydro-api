@@ -36,8 +36,9 @@ public class Token {
   public enum TokenType {
     RECOVERY_CODE,
     AUTH_ACCESS_TOKEN,
-    AUTH_REFRESH_TOKEN
-
+    AUTH_REFRESH_TOKEN,
+    MQTT_TOKEN,
+    DEVICE_MQTT_TOKEN
   }
 
 }

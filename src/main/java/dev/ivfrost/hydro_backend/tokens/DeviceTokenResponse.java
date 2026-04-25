@@ -3,7 +3,7 @@ package dev.ivfrost.hydro_backend.tokens;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 
-public record TokenResponse(
+public record DeviceTokenResponse(
     @NotNull
     String value,
     @NotNull

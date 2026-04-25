@@ -23,7 +23,7 @@ public record UserUpdateRequest(
     @Size(max = 255)
     String profilePictureUrl,
 
-    @Pattern(regexp = "^\\+?[0-9\\-\\s]{7,20}$", message = "Invalid phone number format")
+    @Pattern(regexp = "^$|^\\+?[0-9\\-\\s]{7,20}$", message = "Invalid phone number format")
     @Size(max = 20)
     String phoneNumber,
 

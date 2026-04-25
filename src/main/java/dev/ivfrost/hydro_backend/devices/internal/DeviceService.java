@@ -1,18 +1,19 @@
 package dev.ivfrost.hydro_backend.devices.internal;
 
 import dev.ivfrost.hydro_backend.devices.DeviceAuthRequest;
+import dev.ivfrost.hydro_backend.devices.DeviceFetchException;
+import dev.ivfrost.hydro_backend.devices.DeviceLinkException;
 import dev.ivfrost.hydro_backend.devices.DeviceLinkRequest;
 import dev.ivfrost.hydro_backend.devices.DeviceLoadEvent;
+import dev.ivfrost.hydro_backend.devices.DeviceNotFoundException;
 import dev.ivfrost.hydro_backend.devices.DeviceProvisionRequest;
+import dev.ivfrost.hydro_backend.devices.DeviceProvisionResponse;
 import dev.ivfrost.hydro_backend.devices.DeviceResponse;
+import dev.ivfrost.hydro_backend.devices.DeviceTokenProvider;
 import dev.ivfrost.hydro_backend.devices.DeviceUpdateRequest;
-import dev.ivfrost.hydro_backend.exception.DeviceFetchException;
-import dev.ivfrost.hydro_backend.exception.DeviceLinkException;
-import dev.ivfrost.hydro_backend.exception.DeviceNotFoundException;
-import dev.ivfrost.hydro_backend.exception.DuplicateMacAddressException;
-import dev.ivfrost.hydro_backend.tokens.EncryptionUtil;
-import dev.ivfrost.hydro_backend.tokens.MqttTokenProvider;
-import dev.ivfrost.hydro_backend.users.UserMqttTokenPayload;
+import dev.ivfrost.hydro_backend.devices.DuplicateMacAddressException;
+import dev.ivfrost.hydro_backend.tokens.DeviceMqttTokenPayload;
+import dev.ivfrost.hydro_backend.tokens.DeviceTokenResponse;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -20,10 +21,12 @@ import java.util.Objects;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +38,8 @@ public class DeviceService {
 
   private final DeviceRepository deviceRepository;
   private final DeviceCacheService deviceCacheService;
-  private final MqttTokenProvider mqttTokenProvider;
+  private final DeviceTokenProvider deviceTokenProvider;
+  private final RedisTemplate<String, String> redisTemplate;
 
   /**
    * Provisions a new device and generates a secret for ownership verification.
@@ -46,20 +50,26 @@ public class DeviceService {
    */
   @CacheEvict(value = "allDevicesCache", allEntries = true)
   @Transactional
-  public DeviceResponse provisionDevice(DeviceProvisionRequest req) {
-    // Check for duplicate MAC address before attempting save
+  public DeviceProvisionResponse provisionDevice(DeviceProvisionRequest req) {
+
     if (deviceRepository.existsByMacAddress(req.macAddress())) {
       throw new DuplicateMacAddressException(req.macAddress());
     }
 
     Device device = convertRequestToDevice(req);
 
-    // Generate and encrypt device secret (serves as ownership proof)
-    device.setSecret(
-        EncryptionUtil.generateRandomString(32)); // Will be auto-encrypted by converter
+    // Generate, hash and set device secret
+    String rawSecret = RandomStringUtils.secure().nextAlphanumeric(32);
+    String hashed = SecretHashUtil.hash(rawSecret);
+    device.setSecretHash(hashed);
 
-    return DeviceUtil.convertDeviceToResponse(deviceRepository.save(device));
+    // Save device
+    Device saved = deviceRepository.save(device);
+
+    // Return device details along with the raw secret
+    return DeviceUtil.convertProvisionDeviceToResponse(saved, rawSecret);
   }
+
 
   /**
    * Links an unlinked device to a user using the device secret as ownership proof
@@ -71,29 +81,35 @@ public class DeviceService {
   @CacheEvict(value = "allDevicesCache", allEntries = true)
   @Transactional
   public void linkDevice(DeviceLinkRequest req, Long userId, boolean unlink) {
-    // Get device by ID from request, then verify secret matches
-    Device device = deviceRepository.findById(req.deviceId())
+
+    String rawSecret = req.secret();
+
+    // Fetch only devices that are not linked yet
+    List<Device> candidates = deviceRepository.findAllByUserIdIsNull();
+
+    // Find the device whose hash matches the raw secret
+    Device device = candidates.stream()
+        .filter(d -> SecretHashUtil.matches(rawSecret, d.getSecretHash()))
+        .findFirst()
         .orElseThrow(() -> new DeviceNotFoundException("Device not found"));
 
-    // Verify the secret matches (converter automatically decrypts)
-    if (device.getSecret() == null || !device.getSecret().equals(req.secret())) {
-      throw new DeviceNotFoundException("Device secret does not match");
-    }
-
     if (!unlink) {
-      // Linking device
+      // Linking
       if (device.getUserId() != null) {
         throw new DeviceLinkException("Device is already linked to a user");
       }
+
       device.setUserId(userId);
       device.setLinkedAt(Instant.now());
       device.setDisplayOrder(calculateDeviceOrder(userId));
       deviceRepository.save(device);
+
     } else {
-      // Unlinking device
+      // Unlinking
       if (device.getUserId() == null || !Objects.equals(device.getUserId(), userId)) {
         throw new DeviceLinkException("Device is not linked to this user");
       }
+
       device.setUserId(null);
       device.setDisplayOrder(0L);
       deviceRepository.save(device);
@@ -155,8 +171,7 @@ public class DeviceService {
    * Updates the friendly friendlyName of a specific device by its ID.
    */
   @Transactional
-  public DeviceResponse updateDeviceFriendlyName(DeviceUpdateRequest req) {
-    Long deviceId = req.id();
+  public DeviceResponse updateDeviceFriendlyName(long deviceId, DeviceUpdateRequest req) {
     Device device = deviceRepository.findById(deviceId)
         .orElseThrow(() -> new DeviceNotFoundException(deviceId));
     verifyDeviceOwnership(req.userId(), deviceId);
@@ -173,8 +188,7 @@ public class DeviceService {
    * @throws DeviceNotFoundException  if the device is not found
    * @throws IllegalArgumentException if the device does not belong to the user
    */
-  public DeviceResponse updateDeviceDetails(DeviceUpdateRequest req) {
-    Long deviceId = req.id();
+  public DeviceResponse updateDeviceDetails(long deviceId, DeviceUpdateRequest req) {
     Device device = deviceRepository.findById(deviceId).orElseThrow(
         () -> new DeviceNotFoundException(deviceId));
 
@@ -212,45 +226,88 @@ public class DeviceService {
   }
 
   /**
-   * Persists the device order stored in Redis to the main database for the authenticated user.
+   * Updates the last seen timestamp of a device to the current time. This should be called whenever
+   * the device interacts with the system (e.g., on MQTT connection, API request, etc.) to keep
+   * track of active devices.
+   *
+   * @param deviceId the ID of the device to update
+   * @throws DeviceNotFoundException if the device is not found
    */
-  @Transactional
-  public void saveDeviceOrder(DeviceUpdateRequest req) {
-    Device device = deviceRepository.findById(req.id())
-        .orElseThrow(() -> new DeviceNotFoundException(req.id()));
-    verifyDeviceOwnership(req.userId(), req.id());
-    device.setDisplayOrder(req.displayOrder());
+  public void updateLastSeen(Long deviceId) {
+    Device device = deviceRepository.findById(deviceId)
+        .orElseThrow(() -> new DeviceNotFoundException(deviceId));
+
+    device.setLastSeen(Instant.now());
     deviceRepository.save(device);
+  }
+
+
+  /**
+   * Updates the live order of devices for a user in Redis. This is used to maintain the display
+   * order of devices in the UI without hitting the database on every change.
+   *
+   * @param deviceIds the list of device IDs in the new order
+   */
+  public void updateLiveOrder(Long userId, List<Long> deviceIds) {
+    String key = "device_order:" + userId;
+
+    // Clear existing list
+    redisTemplate.delete(key);
+
+    // Push new order
+    redisTemplate.opsForList().rightPushAll(
+        key,
+        deviceIds.stream().map(String::valueOf).toList()
+    );
+  }
+
+  /**
+   * Persists the live device order from Redis to the database. This should be called when the user
+   * explicitly saves their device order or when they abandon the tab/page to ensure the order is
+   * not lost.
+   *
+   * @param userId the ID of the user whose device order is being persisted
+   */
+  public void persistDeviceOrder(Long userId) {
+    String key = "device_order:" + userId;
+    List<String> deviceIdStrings = redisTemplate.opsForList().range(key, 0, -1);
+    if (deviceIdStrings == null || deviceIdStrings.isEmpty()) {
+      return; // No order to persist
+    }
+
+    List<Long> deviceIds = deviceIdStrings.stream()
+        .map(Long::valueOf)
+        .toList();
+
+    for (int i = 0; i < deviceIds.size(); i++) {
+      Long deviceId = deviceIds.get(i);
+      Device device = deviceRepository.findById(deviceId)
+          .orElseThrow(() -> new DeviceNotFoundException(deviceId));
+      if (Objects.equals(device.getUserId(), userId)) {
+        device.setDisplayOrder((long) (i + 1));
+        deviceRepository.save(device);
+      }
+    }
   }
 
   /**
    * Authenticates a device and returns an MQTT JWT token. Device publishes to the topic:
    * hydro/{device-secret}/*
    */
-  public String getMqttAuthToken(DeviceAuthRequest req) {
+  public DeviceTokenResponse getMqttAuthToken(DeviceAuthRequest req) {
     // Load device by ID and verify secret matches
     Device device = deviceRepository.findById(req.deviceId())
         .orElseThrow(() -> new DeviceNotFoundException("Device not found"));
 
-    // Verify the secret matches (converter automatically decrypts)
-    if (device.getSecret() == null || !device.getSecret().equals(req.secret())) {
+    // Verify the provided secret matches the stored hash
+    if (!SecretHashUtil.matches(req.secret(), device.getSecretHash())) {
       throw new DeviceNotFoundException("Device secret does not match");
     }
 
-    // Build topics list containing only this device's publish topic
-    List<String> topics = List.of("hydro/" + device.getSecret() + "/#");
-
-    log.debug("Generating MQTT token for device {}, topics: {}", device.getId(), topics);
-    return mqttTokenProvider.generateMqttToken(
-        new UserMqttTokenPayload(device.getId(), topics)
-    );
-  }
-
-  /**
-   * Authenticates a device (using DeviceLinkRequest) and returns an MQTT JWT token.
-   */
-  public String getMqttAuthToken(DeviceLinkRequest req) {
-    return getMqttAuthToken(new DeviceAuthRequest(req.deviceId(), req.secret()));
+    return deviceTokenProvider.generateMqttToken(new DeviceMqttTokenPayload(
+        device.getId(),
+        device.getSecretHash()
+    ));
   }
 
   /*--------------------------*/
@@ -302,16 +359,16 @@ public class DeviceService {
    * Regenerates a device's secret.
    *
    * @param deviceId the ID of the device
-   * @return the new secret (decrypted)
+   * @return the new secret in raw form (not hashed)
    * @throws DeviceNotFoundException if the device is not found
    */
   @Transactional
   public String regenerateDeviceSecret(Long deviceId) {
     Device device = getDeviceById(deviceId);
-    String newSecret = EncryptionUtil.generateRandomString(32);
-    device.setSecret(newSecret); // Will be auto-encrypted by converter
-    deviceRepository.save(device);
-    return newSecret; // Return decrypted secret
+    String rawSecret = RandomStringUtils.secure().nextAlphanumeric(32);
+    String hashed = SecretHashUtil.hash(rawSecret);
+    device.setSecretHash(hashed);
+    return rawSecret;
   }
 
   /**
@@ -324,7 +381,7 @@ public class DeviceService {
    */
   public String getSecretByDeviceId(Long deviceId) {
     Device device = getDeviceById(deviceId);
-    return device.getSecret();
+    return device.getSecretHash();
   }
 
   /**
@@ -335,7 +392,7 @@ public class DeviceService {
   public List<String> getUserDeviceTopics(Long userId) {
     List<Device> devices = deviceRepository.findAllByUserId(userId);
     return devices.stream()
-        .map(device -> "hydro/" + device.getSecret() + "/#")
+        .map(device -> "hydro/" + userId + "/" + device.getKey() + "/#")
         .toList();
   }
 
