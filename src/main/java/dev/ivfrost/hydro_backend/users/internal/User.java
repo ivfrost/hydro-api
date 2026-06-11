@@ -17,6 +17,8 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.List;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
@@ -29,7 +31,9 @@ import org.springframework.aot.hint.RuntimeHints;
 import org.springframework.aot.hint.RuntimeHintsRegistrar;
 import org.springframework.context.annotation.ImportRuntimeHints;
 
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
 @Data
 @Table(name = "users")
 @Entity
@@ -89,6 +93,7 @@ public class User implements Serializable {
   @Column(name = "role", nullable = false)
   private List<Role> roles;
 
+  @Builder.Default
   @Size(min = 2, max = 2)
   @Column(name = "preferred_language", nullable = false)
   private String preferredLanguage = "es";
@@ -99,6 +104,7 @@ public class User implements Serializable {
   @Column(columnDefinition = "text")
   private String notes;
 
+  @Builder.Default
   @Column(name = "is_enabled", nullable = false)
   private boolean isEnabled = true;
 
