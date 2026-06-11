@@ -1,4 +1,4 @@
-package dev.ivfrost.hydro_backend.devices;
+package dev.ivfrost.hydro_backend.tokens;
 
 import java.security.SecureRandom;
 import java.util.Base64;

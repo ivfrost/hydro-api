@@ -1,7 +1,5 @@
-package dev.ivfrost.hydro_backend.users;
+package dev.ivfrost.hydro_backend.devices;
 
-import dev.ivfrost.hydro_backend.devices.DeviceResponse;
-import dev.ivfrost.hydro_backend.devices.DeviceUpdateRequest;
 import java.util.List;
 
 public interface UserDeviceProvider {

@@ -5,7 +5,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-import dev.ivfrost.hydro_backend.users.UserTokenProvider;
+import dev.ivfrost.hydro_backend.tokens.UserTokenProvider;
 import dev.ivfrost.hydro_backend.users.UserRegisterRequest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;

@@ -9,7 +9,6 @@ import dev.ivfrost.hydro_backend.devices.DeviceProvisionResponse;
 import dev.ivfrost.hydro_backend.devices.DeviceResponse;
 import dev.ivfrost.hydro_backend.devices.DeviceUpdateRequest;
 import dev.ivfrost.hydro_backend.tokens.DeviceTokenResponse;
-import dev.ivfrost.hydro_backend.users.MyUserDetails;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -203,11 +202,7 @@ public class DeviceController {
 
   // Helper method to get the current authenticated user's ID from the security context
   private Long currentUserId() {
-    return ((MyUserDetails) SecurityContextHolder
-        .getContext()
-        .getAuthentication()
-        .getPrincipal())
-        .getUserId();
+    return Long.parseLong(SecurityContextHolder.getContext().getAuthentication().getName());
   }
 }
 

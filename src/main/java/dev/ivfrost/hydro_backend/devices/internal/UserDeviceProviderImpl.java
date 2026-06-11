@@ -1,9 +1,8 @@
-package dev.ivfrost.hydro_backend.devices.internal.adapter;
+package dev.ivfrost.hydro_backend.devices.internal;
 
 import dev.ivfrost.hydro_backend.devices.DeviceResponse;
 import dev.ivfrost.hydro_backend.devices.DeviceUpdateRequest;
-import dev.ivfrost.hydro_backend.devices.internal.DeviceService;
-import dev.ivfrost.hydro_backend.users.UserDeviceProvider;
+import dev.ivfrost.hydro_backend.devices.UserDeviceProvider;
 import java.util.List;
 import org.springframework.stereotype.Component;
 

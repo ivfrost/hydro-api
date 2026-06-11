@@ -1,6 +1,6 @@
 package dev.ivfrost.hydro_backend.tokens.internal.adapter;
 
-import dev.ivfrost.hydro_backend.devices.DeviceTokenProvider;
+import dev.ivfrost.hydro_backend.tokens.DeviceTokenProvider;
 import dev.ivfrost.hydro_backend.tokens.DeviceMqttTokenPayload;
 import dev.ivfrost.hydro_backend.tokens.DeviceTokenResponse;
 import dev.ivfrost.hydro_backend.tokens.internal.TokenService;

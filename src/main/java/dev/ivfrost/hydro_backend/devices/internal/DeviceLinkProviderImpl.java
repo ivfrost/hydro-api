@@ -1,8 +1,7 @@
-package dev.ivfrost.hydro_backend.devices.internal.adapter;
+package dev.ivfrost.hydro_backend.devices.internal;
 
 import dev.ivfrost.hydro_backend.devices.DeviceLinkProvider;
 import dev.ivfrost.hydro_backend.devices.DeviceLinkRequest;
-import dev.ivfrost.hydro_backend.devices.internal.DeviceService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
