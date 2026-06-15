@@ -2,5 +2,10 @@ package dev.ivfrost.hydro_backend.tokens;
 
 public interface DeviceTokenProvider {
 
-  DeviceTokenResponse generateMqttToken(DeviceMqttTokenPayload payload);
+   TokenResponse generateMqttToken(MqttTokenPayload payload);
+
+   void validateMqttToken(String token);
+
+   boolean validateMqttAcl(String token, String topic, int action);
+
 }

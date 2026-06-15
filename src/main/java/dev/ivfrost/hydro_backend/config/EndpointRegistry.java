@@ -39,6 +39,9 @@ public class EndpointRegistry {
       "/h2-console/**",
       "/h2-console"
   );
+  private static final List<String> DEVICE_CALLABLE = List.of(
+      "/v1/internal/devices/auth"
+  );
 
   private static final AntPathMatcher pathMatcher = new AntPathMatcher();
 
@@ -59,5 +62,9 @@ public class EndpointRegistry {
 
   public static String[] getAuthenticatedEndpoints() {
     return APP_AUTHENTICATED.toArray(new String[0]);
+  }
+
+  public static String[] getDeviceCallableEndpoints() {
+    return DEVICE_CALLABLE.toArray(new String[0]);
   }
 }

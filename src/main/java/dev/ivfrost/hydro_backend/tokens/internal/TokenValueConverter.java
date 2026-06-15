@@ -3,25 +3,28 @@ package dev.ivfrost.hydro_backend.tokens.internal;
 import dev.ivfrost.hydro_backend.tokens.EncryptionUtil;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-
 
 /**
  * JPA converter that automatically encrypts token value when storing to database and decrypts when
  * retrieving from database.
  */
 @Slf4j
-@RequiredArgsConstructor
 @Converter
 @Component
 class TokenValueConverter implements AttributeConverter<String, String> {
 
   private final EncryptionUtil encryptionUtil;
-  @Value("${recovery.secret}")
-  private String recoverySecret;
+  private final String recoverySecret;
+
+  public TokenValueConverter(
+      EncryptionUtil encryptionUtil,
+      @Value("${recovery.secret}") String recoverySecret) {
+    this.encryptionUtil = encryptionUtil;
+    this.recoverySecret = recoverySecret;
+  }
 
   @Override
   public String convertToDatabaseColumn(String attribute) {
@@ -52,4 +55,3 @@ class TokenValueConverter implements AttributeConverter<String, String> {
     }
   }
 }
-

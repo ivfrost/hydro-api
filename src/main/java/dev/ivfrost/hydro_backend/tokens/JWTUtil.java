@@ -65,6 +65,11 @@ public class JWTUtil {
         .withIssuer(issuer);
   }
 
+  private Algorithm getAuthAlgorithm() {
+    byte[] secretBytes = jwtSecret.getBytes();
+    return Algorithm.HMAC512(secretBytes);
+  }
+
   // Sign auth JWT token with HMAC using SHA-512
   private String signAccessToken(JWTCreator.Builder builder, Long expirationMs)
       throws JWTCreationException {
@@ -93,13 +98,10 @@ public class JWTUtil {
     return signAccessToken(builder, jwtAccessExpirationMs);
   }
 
-  private Algorithm getAuthAlgorithm() {
-    byte[] secretBytes = jwtSecret.getBytes();
-    return Algorithm.HMAC512(secretBytes);
-  }
-
-  private Algorithm getMqttAlgorithm() {
-    return getOrInitializeMqttAlgorithm();
+  // Create long-lived auth refresh JWT token for obtaining new short-lived tokens
+  public String generateRefreshToken(TokenPayload payload) {
+    JWTCreator.Builder builder = buildAccessToken(payload);
+    return signAccessToken(builder, jwtRefreshExpirationMs);
   }
 
   // Build JWT token for MQTT authentication
@@ -130,12 +132,6 @@ public class JWTUtil {
     }
   }
 
-  // Create long-lived auth refresh JWT token for obtaining new short-lived tokens
-  public String generateRefreshToken(TokenPayload payload) {
-    JWTCreator.Builder builder = buildAccessToken(payload);
-    return signAccessToken(builder, jwtRefreshExpirationMs);
-  }
-
   // Create a short-lived MQTT auth JWT token
   public String generateMqttToken(MqttTokenPayload payload) {
     JWTCreator.Builder builder;
@@ -149,11 +145,11 @@ public class JWTUtil {
   }
 
   // Create a MQTT auth JWT token for use by devices
-  public String generateDeviceMqttToken(DeviceMqttTokenPayload payload) {
+  public String generateDeviceMqttToken(Long deviceId, String deviceKey) {
     return generateMqttToken(
         new MqttTokenPayload(
-            payload.deviceId(),
-            List.of("hydro/" + payload.secret() + "/#")
+            deviceId,
+            List.of("hydro/" + deviceKey + "/#")
         )
     );
   }
@@ -210,7 +206,7 @@ public class JWTUtil {
     }
   }
 
-  private synchronized Algorithm getOrInitializeMqttAlgorithm() {
+  private synchronized Algorithm getMqttAlgorithm() {
     if (cachedMqttAlgorithm != null) {
       return cachedMqttAlgorithm;
     }
@@ -232,43 +228,38 @@ public class JWTUtil {
     }
   }
 
-  private Algorithm getMqttVerificationAlgorithm() {
-    return getOrInitializeMqttAlgorithm();
-  }
-
-  public void validateMqttToken(String token) throws JWTVerificationException {
+  public DecodedJWT validateMqttToken(String token) throws JWTVerificationException {
     if (token == null || token.isBlank()) {
       throw new IllegalArgumentException("Token cannot be null or blank");
     }
-    JWT.require(getMqttVerificationAlgorithm())
+
+    return JWT.require(getMqttAlgorithm())
         .withIssuer(issuer)
         .build()
         .verify(token);
   }
 
   public boolean validateMqttAcl(String token, String topic, int action) {
-    try {
-      if (token == null || token.isBlank()) return false;
+    if (token == null || token.isBlank()) return false;
 
-      DecodedJWT jwt = JWT.require(getMqttVerificationAlgorithm())
-          .withIssuer(issuer)
-          .build()
-          .verify(token);
+    try {
+      DecodedJWT jwt = validateMqttToken(token);
 
       if (action == 1) { // SUBSCRIBE
         List<String> subs = jwt.getClaim("subs").asList(String.class);
         return subs != null && subs.stream().anyMatch(rule -> mqttTopicMatch(rule, topic));
       } else if (action == 2) { // PUBLISH
         Claim publClaim = jwt.getClaim("publ");
-        List<String> publs = publClaim.asLong() != null || publClaim.asString() != null
-            ? List.of(publClaim.asString())
-            : publClaim.asList(String.class);
+        if (publClaim.isMissing() || publClaim.isNull()) {
+          return false;
+        }
 
+        List<String> publs = publClaim.asList(String.class);
         return publs != null && publs.stream().anyMatch(rule -> mqttTopicMatch(rule, topic));
       }
       return false;
     } catch (Exception e) {
-      log.error("MQTT ACL verification failed: {}", e.getMessage());
+      log.error("ACL verification failed due to token parsing error: {}", e.getMessage());
       return false;
     }
   }

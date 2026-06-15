@@ -14,6 +14,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -46,6 +47,7 @@ public class SecurityConfig {
   public record CorsProperties(List<String> allowedOrigins) {}
 
   @Bean
+  @Order(2)
   public SecurityFilterChain securityFilterChain(final HttpSecurity http, Environment environment) throws Exception {
     log.info("Configuring security filter chain...");
     http.csrf(AbstractHttpConfigurer::disable)
@@ -77,6 +79,19 @@ public class SecurityConfig {
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
     log.info("Security filter chain configured successfully.");
+    return http.build();
+  }
+
+  // Isolate device callable endpoints to a separate filter chain
+  @Bean
+  @Order(1)
+  public SecurityFilterChain deviceSecurityFilterChain(final HttpSecurity http) throws Exception {
+    http.securityMatcher(EndpointRegistry.getDeviceCallableEndpoints())
+        .csrf(AbstractHttpConfigurer::disable)
+        .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        // Handled entirely by Controller
+        .authorizeHttpRequests(req -> req.anyRequest().permitAll());
+
     return http.build();
   }
 

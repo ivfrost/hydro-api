@@ -1,11 +1,13 @@
 package dev.ivfrost.hydro_backend.tokens;
 
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.codec.Hex;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +18,8 @@ public class EncryptionUtil {
 
   private static final SecureRandom secureRandom = new SecureRandom();
   private static final String ALGORITHM = "AES";
+  @Value("${device.secret}")
+  private String deviceSecret;
 
   public static String generateRandomString(int length) {
     byte[] randomBytes = new byte[length];
@@ -27,13 +31,29 @@ public class EncryptionUtil {
    * Encrypts data deterministically using AES ECB mode. Same input + same secret = same output
    * (required for DB queries).
    */
-  public String encrypt(String raw, String secret) {
+  public String encrypt(String raw) {
     try {
-      byte[] keyBytes = deriveKey(secret);
+      byte[] keyBytes = deriveKey(this.deviceSecret);
       SecretKeySpec keySpec = new SecretKeySpec(keyBytes, ALGORITHM);
       Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
       cipher.init(Cipher.ENCRYPT_MODE, keySpec);
-      byte[] encrypted = cipher.doFinal(raw.getBytes());
+      byte[] encrypted = cipher.doFinal(raw.getBytes(StandardCharsets.UTF_8));
+      return new String(Hex.encode(encrypted));
+    } catch (Exception e) {
+      throw new RuntimeException("Encryption failed", e);
+    }
+  }
+
+  /**
+   * Encrypts data with a custom secret (used for recovery codes - different secret than devices).
+   */
+  public String encrypt(String raw, String customSecret) {
+    try {
+      byte[] keyBytes = deriveKey(customSecret);
+      SecretKeySpec keySpec = new SecretKeySpec(keyBytes, ALGORITHM);
+      Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+      cipher.init(Cipher.ENCRYPT_MODE, keySpec);
+      byte[] encrypted = cipher.doFinal(raw.getBytes(StandardCharsets.UTF_8));
       return new String(Hex.encode(encrypted));
     } catch (Exception e) {
       throw new RuntimeException("Encryption failed", e);
@@ -43,14 +63,30 @@ public class EncryptionUtil {
   /**
    * Decrypts data.
    */
-  public String decrypt(String encrypted, String secret) {
+  public String decrypt(String encrypted) {
     try {
-      byte[] keyBytes = deriveKey(secret);
+      byte[] keyBytes = deriveKey(this.deviceSecret);
       SecretKeySpec keySpec = new SecretKeySpec(keyBytes, ALGORITHM);
       Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
       cipher.init(Cipher.DECRYPT_MODE, keySpec);
       byte[] decrypted = cipher.doFinal(Hex.decode(encrypted));
-      return new String(decrypted);
+      return new String(decrypted, StandardCharsets.UTF_8);
+    } catch (Exception e) {
+      throw new RuntimeException("Decryption failed", e);
+    }
+  }
+
+  /**
+   * Decrypts data with a custom secret (used for recovery codes - different secret than devices).
+   */
+  public String decrypt(String encrypted, String customSecret) {
+    try {
+      byte[] keyBytes = deriveKey(customSecret);
+      SecretKeySpec keySpec = new SecretKeySpec(keyBytes, ALGORITHM);
+      Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+      cipher.init(Cipher.DECRYPT_MODE, keySpec);
+      byte[] decrypted = cipher.doFinal(Hex.decode(encrypted));
+      return new String(decrypted, StandardCharsets.UTF_8);
     } catch (Exception e) {
       throw new RuntimeException("Decryption failed", e);
     }
@@ -60,7 +96,7 @@ public class EncryptionUtil {
    * Derives a 16-byte AES key from the secret.
    */
   private byte[] deriveKey(String secret) {
-    byte[] secretBytes = secret.getBytes();
+    byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
     byte[] key = new byte[16];
     System.arraycopy(secretBytes, 0, key, 0, Math.min(secretBytes.length, 16));
     return key;

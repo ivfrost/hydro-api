@@ -1,8 +1,6 @@
 package dev.ivfrost.hydro_backend.tokens.internal;
 
 import com.auth0.jwt.interfaces.Claim;
-import dev.ivfrost.hydro_backend.tokens.DeviceMqttTokenPayload;
-import dev.ivfrost.hydro_backend.tokens.DeviceTokenResponse;
 import dev.ivfrost.hydro_backend.tokens.JWTUtil;
 import dev.ivfrost.hydro_backend.tokens.MqttTokenPayload;
 import dev.ivfrost.hydro_backend.tokens.RecoveryCodeUtil;
@@ -83,13 +81,11 @@ public class TokenService {
     );
   }
 
-  public DeviceTokenResponse generateDeviceMqttToken(DeviceMqttTokenPayload payload) {
-    String token = jWTUtil.generateDeviceMqttToken(payload);
-    return new DeviceTokenResponse(
-        token,
-        TokenType.DEVICE_MQTT_TOKEN.toString(),
-        jWTUtil.getMqttTokenExpiryDate(),
-        payload.deviceId()
-    );
+  public void validateMqttToken(String token) {
+    jWTUtil.validateMqttToken(token);
+  }
+
+  public boolean validateMqttAcl(String token, String topic, int action) {
+    return jWTUtil.validateMqttAcl(token, topic, action);
   }
 }

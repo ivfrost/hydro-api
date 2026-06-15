@@ -8,8 +8,7 @@ import dev.ivfrost.hydro_backend.devices.DeviceProvisionRequest;
 import dev.ivfrost.hydro_backend.devices.DeviceProvisionResponse;
 import dev.ivfrost.hydro_backend.devices.DeviceResponse;
 import dev.ivfrost.hydro_backend.devices.DeviceUpdateRequest;
-import dev.ivfrost.hydro_backend.tokens.DeviceTokenResponse;
-import dev.ivfrost.hydro_backend.tokens.JWTUtil;
+import dev.ivfrost.hydro_backend.tokens.TokenResponse;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,9 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class DeviceController {
 
   private final DeviceService deviceService;
-  private final JWTUtil jwtUtil;
 
-  @Hidden
   @PreAuthorize("hasRole('ADMIN')")
   @Operation(summary = "Link device to user by ID (Admin only)",
       description = "Links a device to a specific user by their unique ID using the device's secret as ownership proof.")
@@ -55,7 +52,6 @@ public class DeviceController {
         .body(ApiResponse.success(HttpStatus.OK, "Device linked to user successfully"));
   }
 
-  @Hidden
   @PreAuthorize("hasRole('ADMIN')")
   @GetMapping("/users/{userId}/devices")
   @Operation(summary = "Retrieve devices by user ID (Admin only)",
@@ -78,7 +74,6 @@ public class DeviceController {
             deviceService.getAllDevices(pageable)));
   }
 
-  @Hidden
   @PreAuthorize("hasRole('ADMIN')")
   @Operation(summary = "Provision new device (Admin only)", description = "Provisions a new device in the system.")
   @PostMapping("/devices")
@@ -112,7 +107,6 @@ public class DeviceController {
         .body(ApiResponse.success(HttpStatus.OK, "Device deleted successfully"));
   }
 
-  @Hidden
   @PreAuthorize("hasRole('ADMIN')")
   @Operation(summary = "Get device secret by ID",
       description = "Retrieves the decrypted device secret for a specific device by its ID.")
@@ -128,7 +122,6 @@ public class DeviceController {
         .body(ApiResponse.success(HttpStatus.OK, "Device secret retrieved successfully", response));
   }
 
-  @Hidden
   @PreAuthorize("hasRole('ADMIN')")
   @Operation(summary = "Regenerate device secret (Admin only)",
       description = "Generates a new secret for a device, replacing the old one.")
@@ -191,38 +184,39 @@ public class DeviceController {
             ApiResponse.success(HttpStatus.OK, "Device last seen timestamp updated successfully"));
   }
 
-  @Operation(summary = "Authenticate device for MQTT",
-      description = "Authenticates a device and returns a signed JWT token for MQTT broker authentication. The device uses its ID and secret as credentials.")
-  @PostMapping("/devices/auth/mqtt")
-  public ResponseEntity<ApiResponse<DeviceTokenResponse>> authenticateDeviceForMqtt(
-      @RequestBody @Valid DeviceAuthRequest req) {
-    return ResponseEntity.status(HttpStatus.OK)
-        .body(ApiResponse.success(HttpStatus.OK, "Device authenticated successfully",
-            deviceService.getMqttAuthToken(req)));
-  }
-
   // Helper method to get the current authenticated user's ID from the security context
   private Long currentUserId() {
     return Long.parseLong(SecurityContextHolder.getContext().getAuthentication().getName());
   }
 
-  // Webhooks for MQTT broker authorization and ACL checks
+  /**
+   * Webhook for MQTT broker authentication.
+   * This endpoint is called by the MQTT broker to verify the validity of the MQTT token
+   * issued to the client.
+   */
   @Hidden
   @PostMapping("/internal/mqtt/auth")
   public ResponseEntity<Map<String, Object>> verifyMqttConnection(@RequestBody MqttAuthRequest req) {
     try {
-      jwtUtil.validateMqttToken(req.password());
+      deviceService.verifyMqttConnection(req);
       return ResponseEntity.ok(Map.of("result", "allow"));
     } catch (Exception e) {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("result", "deny"));
     }
   }
 
+  /**
+   * Webhook for MQTT broker ACL authorization.
+   * This endpoint is called by the MQTT broker to verify whether a client is authorized
+   * to pub/sub to a specific topic.
+   * The MQTT token contains the allowed topics for the client, and this endpoint checks
+   * whether the requested topic and action (pub/sub) is allowed by the token's claims.
+   */
   @Hidden
   @PostMapping("/internal/mqtt/acl")
   public ResponseEntity<Map<String, Object>> verifyMqttAcl(@RequestBody MqttAclRequest req) {
     try {
-      boolean allowed = jwtUtil.validateMqttAcl(req.password(), req.topic(), req.action());
+      boolean allowed = deviceService.verifyMqttAcl(req);
       if (allowed) {
         return ResponseEntity.ok(Map.of("result", "allow"));
       }
@@ -232,9 +226,18 @@ public class DeviceController {
     }
   }
 
+  @PostMapping("/internal/devices/auth")
+  public ResponseEntity<ApiResponse<TokenResponse>> authenticateDevice(@RequestBody DeviceAuthRequest req) {
+    return ResponseEntity.status(HttpStatus.OK)
+      .body(ApiResponse.success(HttpStatus.OK, "Device MQTT auth token retrieved successfully",
+          deviceService.authenticateDevice(req)
+          ));
+  }
+
   public record MqttAuthRequest(String username, String password, String clientid) {}
   public record MqttAclRequest(String username, String clientid, String topic, int action, String password) {}
 
+  //
 
 }
 

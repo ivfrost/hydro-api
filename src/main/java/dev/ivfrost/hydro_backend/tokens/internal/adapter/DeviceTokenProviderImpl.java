@@ -1,20 +1,35 @@
 package dev.ivfrost.hydro_backend.tokens.internal.adapter;
 
+import com.auth0.jwt.interfaces.Claim;
 import dev.ivfrost.hydro_backend.tokens.DeviceTokenProvider;
-import dev.ivfrost.hydro_backend.tokens.DeviceMqttTokenPayload;
-import dev.ivfrost.hydro_backend.tokens.DeviceTokenResponse;
+import dev.ivfrost.hydro_backend.tokens.MqttTokenPayload;
+import dev.ivfrost.hydro_backend.tokens.TokenResponse;
 import dev.ivfrost.hydro_backend.tokens.internal.TokenService;
-import lombok.AllArgsConstructor;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
-@AllArgsConstructor
 @Service
 public class DeviceTokenProviderImpl implements DeviceTokenProvider {
 
   private final TokenService tokenService;
 
-  @Override
-  public DeviceTokenResponse generateMqttToken(DeviceMqttTokenPayload payload) {
-    return tokenService.generateDeviceMqttToken(payload);
+  public DeviceTokenProviderImpl(TokenService tokenService) {
+    this.tokenService = tokenService;
   }
+
+  @Override
+  public TokenResponse generateMqttToken(MqttTokenPayload payload) {
+    return tokenService.generateMqttToken(payload);
+  }
+
+  @Override
+  public void validateMqttToken(String token) {
+    tokenService.validateMqttToken(token);
+  }
+
+  @Override
+  public boolean validateMqttAcl(String token, String topic,  int action) {
+    return tokenService.validateMqttAcl(token, topic, action);
+  }
+
 }
