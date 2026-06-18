@@ -34,15 +34,11 @@ CMD ["java", "-Dspring.profiles.active=default", "org.springframework.boot.loade
 # PRODUCTION: Use the JRE and a non-root user.
 FROM eclipse-temurin:21-jre-jammy AS production
 ARG UID=10001
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
-    --no-create-home \
-    --uid "${UID}" \
-    appuser
+RUN adduser --disabled-password --gecos "" --home "/nonexistent" --shell "/sbin/nologin" --no-create-home --uid "${UID}" appuser
+
+WORKDIR /app
 USER appuser
+
 COPY --from=extract /build/target/extracted/dependencies/ ./
 COPY --from=extract /build/target/extracted/spring-boot-loader/ ./
 COPY --from=extract /build/target/extracted/snapshot-dependencies/ ./

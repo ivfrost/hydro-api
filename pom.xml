@@ -203,6 +203,7 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.springframework.modulith</groupId>
@@ -212,7 +213,7 @@
     <dependency>
       <groupId>org.springframework.modulith</groupId>
       <artifactId>spring-modulith-observability</artifactId>
-      <scope>runtime</scope>
+      <scope>test</scope>
     </dependency>
   </dependencies>
   <dependencyManagement>
