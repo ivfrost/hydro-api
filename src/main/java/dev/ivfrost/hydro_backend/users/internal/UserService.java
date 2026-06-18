@@ -353,6 +353,7 @@ public class UserService {
     log.debug("Retrieved {} topics for user {}: {}", topics.size(), user.getId(), topics);
     return new UserMqttResponse(user.getId(), jwtUtil.generateMqttToken(new MqttTokenPayload(
         user.getId(),
+        null,
         topics
     )));
   }

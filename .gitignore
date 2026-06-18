@@ -39,6 +39,7 @@ hydro-backend.tar
 *.key
 *.pub
 *.pem
+!*_public_key.pem
 *.p12
 *.der
 

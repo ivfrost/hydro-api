@@ -8,18 +8,14 @@ import com.auth0.jwt.exceptions.JWTDecodeException;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.security.KeyFactory;
-import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -41,8 +37,8 @@ public class JWTUtil {
   private Long jwtAccessExpirationMs;
   @Value("${jwt.refresh.expiration.ms}")
   private Long jwtRefreshExpirationMs;
-  @Value("${mqtt.jwt.private.key.path}")
-  private String mqttJwtPrivateKeyPath;
+  @Value("${mqtt.jwt.private.key.b64}")
+  private String mqttJwtPrivateKeyB64;
   @Value("${mqtt.jwt.expiration.ms}")
   private Long mqttJwtExpirationMs;
 
@@ -109,11 +105,15 @@ public class JWTUtil {
       throws JWTCreationException {
     log.debug("Building MQTT token for userId/deviceId: {}, topics: {}", payload.userId(),
         payload.topics());
-    return JWT.create()
+    JWTCreator.Builder builder = JWT.create()
         .withSubject(payload.userId().toString())
         .withClaim("subs", payload.topics())
         .withClaim("publ", payload.topics())
         .withIssuer(issuer);
+    if (payload.deviceId() != null) {
+      builder.withClaim("deviceId", payload.deviceId());
+    }
+    return builder;
   }
 
   // Sign auth MQTT JWT token with RSA using SHA-256
@@ -142,16 +142,6 @@ public class JWTUtil {
       throw e;
     }
     return signMqttToken(builder, mqttJwtExpirationMs);
-  }
-
-  // Create a MQTT auth JWT token for use by devices
-  public String generateDeviceMqttToken(Long deviceId, String deviceKey) {
-    return generateMqttToken(
-        new MqttTokenPayload(
-            deviceId,
-            List.of("hydro/" + deviceKey + "/#")
-        )
-    );
   }
 
   public Map<String, Claim> validateTokenAndRetrieveClaims(String token)
@@ -188,36 +178,20 @@ public class JWTUtil {
     return Instant.now().plus(mqttJwtExpirationMs, ChronoUnit.MILLIS);
   }
 
-  private RSAPrivateKey loadPrivateKeyFromFile(String path) {
-    if (path == null || path.isBlank()) {
-      throw new IllegalArgumentException("Private key file path cannot be null or blank");
-    }
-    File keyFile = new File(path);
-    if (!keyFile.exists() || !keyFile.isFile()) {
-      throw new IllegalArgumentException("Invalid private key file path: " + path);
-    }
-    try {
-      byte[] keyBytes = Files.readAllBytes(keyFile.toPath());
-      KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-      PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
-      return (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
-    } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
   private synchronized Algorithm getMqttAlgorithm() {
     if (cachedMqttAlgorithm != null) {
       return cachedMqttAlgorithm;
     }
     try {
-      RSAPrivateKey privateKey = loadPrivateKeyFromFile(mqttJwtPrivateKeyPath);
-      // Derive the public key from the private key for signature verification
+      byte[] keyBytes = Base64.getDecoder().decode(mqttJwtPrivateKeyB64);
+      KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+      PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+      RSAPrivateKey privateKey = (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
+
       RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(
           privateKey.getModulus(),
-          java.math.BigInteger.valueOf(65537) // Common public exponent for RSA keys
+          java.math.BigInteger.valueOf(65537)
       );
-      KeyFactory keyFactory = KeyFactory.getInstance("RSA");
       RSAPublicKey publicKey = (RSAPublicKey) keyFactory.generatePublic(publicKeySpec);
 
       this.cachedMqttAlgorithm = Algorithm.RSA256(publicKey, privateKey);

@@ -174,16 +174,6 @@ public class DeviceController {
             deviceService.updateDeviceFriendlyName(deviceId, req)));
   }
 
-  @Operation(summary = "Update device last seen timestamp", description = "Updates the last seen timestamp of a device linked to the currently authenticated user.")
-  @PutMapping("/me/devices/{deviceId}/last-seen")
-  public ResponseEntity<ApiResponse<Void>> updateDeviceLastSeen(
-      @PathVariable Long deviceId) {
-    deviceService.updateLastSeen(deviceId);
-    return ResponseEntity.status(HttpStatus.OK)
-        .body(
-            ApiResponse.success(HttpStatus.OK, "Device last seen timestamp updated successfully"));
-  }
-
   // Helper method to get the current authenticated user's ID from the security context
   private Long currentUserId() {
     return Long.parseLong(SecurityContextHolder.getContext().getAuthentication().getName());
@@ -198,8 +188,12 @@ public class DeviceController {
   @PostMapping("/internal/mqtt/auth")
   public ResponseEntity<Map<String, Object>> verifyMqttConnection(@RequestBody MqttAuthRequest req) {
     try {
+      ResponseEntity<Map<String, Object>> allowedResponse = ResponseEntity.ok(Map.of("result", "allow"));
+      if ("hydro-api-user".equals(req.username())) {
+        return allowedResponse;
+      }
       deviceService.verifyMqttConnection(req);
-      return ResponseEntity.ok(Map.of("result", "allow"));
+      return allowedResponse;
     } catch (Exception e) {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("result", "deny"));
     }
@@ -215,6 +209,10 @@ public class DeviceController {
   @Hidden
   @PostMapping("/internal/mqtt/acl")
   public ResponseEntity<Map<String, Object>> verifyMqttAcl(@RequestBody MqttAclRequest req) {
+    // Intercept requests from the API and allow it to bypass ACL checks
+    if ("hydro-api-user".equals(req.username())) {
+      return ResponseEntity.ok(Map.of("result", "allow"));
+    }
     try {
       boolean allowed = deviceService.verifyMqttAcl(req);
       if (allowed) {
@@ -227,12 +225,12 @@ public class DeviceController {
   }
 
   @PostMapping("/internal/devices/auth")
-  public ResponseEntity<ApiResponse<TokenResponse>> authenticateDevice(@RequestBody DeviceAuthRequest req) {
-    return ResponseEntity.status(HttpStatus.OK)
-      .body(ApiResponse.success(HttpStatus.OK, "Device MQTT auth token retrieved successfully",
-          deviceService.authenticateDevice(req)
-          ));
-  }
+    public ResponseEntity<ApiResponse<TokenResponse>> authenticateDevice(@RequestBody DeviceAuthRequest req) {
+      return ResponseEntity.status(HttpStatus.OK)
+        .body(ApiResponse.success(HttpStatus.OK, "Device MQTT auth token retrieved successfully",
+            deviceService.authenticateDevice(req)
+            ));
+    }
 
   public record MqttAuthRequest(String username, String password, String clientid) {}
   public record MqttAclRequest(String username, String clientid, String topic, int action, String password) {}

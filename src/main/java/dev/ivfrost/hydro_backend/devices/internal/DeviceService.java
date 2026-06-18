@@ -19,6 +19,7 @@ import dev.ivfrost.hydro_backend.tokens.EncryptionUtil;
 import dev.ivfrost.hydro_backend.tokens.JWTUtil;
 import dev.ivfrost.hydro_backend.tokens.MqttTokenPayload;
 import dev.ivfrost.hydro_backend.tokens.TokenResponse;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -246,7 +248,7 @@ public class DeviceService {
    * @throws DeviceNotFoundException if the device is not found
    */
   @Transactional
-  public void updateLastSeen(Long deviceId) {
+  public void persistLastSeen(Long deviceId) {
     Device device = deviceRepository.findById(deviceId)
         .orElseThrow(() -> new DeviceNotFoundException(deviceId));
 
@@ -318,7 +320,7 @@ public class DeviceService {
 
   public TokenResponse authenticateDevice(DeviceAuthRequest req) {
     // Load device by ID and verify secret matches
-    Device device = deviceRepository.findById(req.deviceId())
+    Device device = deviceRepository.findByKey(req.key())
         .orElseThrow(() -> new DeviceNotFoundException("Device not found"));
 
     // Decrypt and compare stored secret hash with the provided raw secret
@@ -335,9 +337,20 @@ public class DeviceService {
     return deviceTokenProvider.generateMqttToken(
         new MqttTokenPayload(
             deviceUserId,
-            List.of("hydro/" + deviceUserId + "/" + device.getKey() + "/#")
+            device.getId(),
+            List.of("hydro/" + "+" + "/" + device.getKey() + "/#")
         )
     );
+  }
+
+  public void updateLastSeen(String deviceKey) {
+    boolean shouldPersist = deviceCacheService.updateLastSeen(deviceKey);
+    if (shouldPersist) {
+      Device device = deviceRepository.findByKey(deviceKey)
+          .orElseThrow(() -> new DeviceNotFoundException("Device not found for key: " + deviceKey));
+      device.setLastSeen(Instant.now());
+      deviceRepository.save(device);
+    }
   }
 
   /*--------------------------*/
@@ -448,18 +461,22 @@ public class DeviceService {
   private void evictGlobalCache() {
     Objects.requireNonNull(cacheManager.getCache("allDevicesCache")).clear();
   }
+
+
 }
 
 /**
  * Service for caching device queries using Spring Cache abstraction. Reduces database load for
  * frequently accessed device data.
  */
-@Slf4j
-@AllArgsConstructor
+@RequiredArgsConstructor
 @Service
 class DeviceCacheService {
 
   private final DeviceRepository deviceRepository;
+  private final RedisTemplate<String, String> redisTemplate;
+  @Value("${cache.last-seen.expiration.ms}")
+  private String lastSeenExpirationMs;
 
   /**
    * Retrieves a device by its ID from cache. Cache is invalidated when the device is updated.
@@ -502,5 +519,33 @@ class DeviceCacheService {
   )
   public Page<Device> getAllDevices(Pageable pageable) {
     return deviceRepository.findAll(pageable);
+  }
+
+  /**
+   * Updates the last seen timestamp of a device in Redis.
+   * Flushes to DB if the last saved
+   *
+   */
+  public boolean updateLastSeen(String deviceKey) {
+    Instant now = Instant.now();
+    String redisKey = "device_last_seen:" + deviceKey;
+    String cachedValue = redisTemplate.opsForValue().get(redisKey);
+
+    // If no cached value exists, set cache and persist to DB immediately
+    if (cachedValue == null) {
+      redisTemplate.opsForValue().set(redisKey, now.toString());
+      return true;
+    }
+
+    Instant lastCached = Instant.parse(cachedValue);
+    // If cached value, check if expiration time has passed since last persisted value
+    boolean shouldPersist = Duration.between(lastCached, now).toMillis() >= Long.parseLong(lastSeenExpirationMs);
+
+    if (shouldPersist) {
+      // Always update cache with current timestamp
+      redisTemplate.opsForValue().set(redisKey, now.toString());
+    }
+
+    return shouldPersist;
   }
 }

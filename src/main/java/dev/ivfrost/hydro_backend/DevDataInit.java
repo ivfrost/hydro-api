@@ -8,19 +8,30 @@ import dev.ivfrost.hydro_backend.users.internal.User.Role;
 import dev.ivfrost.hydro_backend.users.internal.UserRepository;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-@AllArgsConstructor
+@RequiredArgsConstructor
+@Profile("dev")
 @Component
 public class DevDataInit implements ApplicationRunner {
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
   private final DeviceRepository deviceRepository;
+  @Value("${mqtt.username}")
+  private String mqttUsername;
+  @Value("${mqtt.password}")
+  private String mqttPassword;
+  @Value("${mqtt.client.id}")
+  private String mqttClientId;
 
   @Override
   public void run(@NonNull ApplicationArguments args) throws Exception {
@@ -35,6 +46,20 @@ public class DevDataInit implements ApplicationRunner {
           .roles(List.of(
               Role.ADMIN,
               Role.USER
+          ))
+          .build());
+    }
+    Optional<User> apiUserOpt = userRepository.findByUsername(mqttUsername);
+    if (apiUserOpt.isEmpty()) {
+      userRepository.save(User.builder()
+          .username(mqttUsername)
+          .fullName("MQTT API User")
+          .password(passwordEncoder.encode(mqttPassword))
+          .email(String.format("%s@%s.com", mqttUsername, mqttClientId))
+          .createdAt(Instant.now())
+          .updatedAt(Instant.now())
+          .roles(List.of(
+              Role.ADMIN
           ))
           .build());
     }

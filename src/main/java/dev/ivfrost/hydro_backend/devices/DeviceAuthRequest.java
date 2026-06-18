@@ -4,8 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record DeviceAuthRequest(
-    @NotNull
-    Long deviceId,
+    @NotNull(message = "Device key is required")
+    String key,
 
     @NotBlank(message = "Device secret is required")
     String secret

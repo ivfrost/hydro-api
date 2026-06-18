@@ -90,9 +90,6 @@ public class Device implements Serializable {
 
   @PrePersist
   protected void onCreate() {
-    if (this.key == null) {
-      this.key = UUID.randomUUID().toString();
-    }
     if (this.lastSeen == null) {
       this.lastSeen = Instant.now();
     }
