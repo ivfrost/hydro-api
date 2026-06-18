@@ -54,5 +54,6 @@ hydro-backend.tar
 .env.development
 .env.local
 *.properties
+!application-stage.properties
 !*.template
 !*.example
