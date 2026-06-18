@@ -25,7 +25,7 @@ services:
       MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-hydro-api}
       MQTT_USERNAME: ${MQTT_USERNAME:-hydro-api-user}
       MQTT_PASSWORD: ${MQTT_PASSWORD:-${SERVICE_HEX_32_4}}
-      DB_URL: ${DB_URL:-postgres:5432/${DB_NAME:-hydrodb-stage}}
+      DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/hydrodb-stage}
       DB_USERNAME: ${DB_USERNAME:-hydro}
       DB_PASSWORD: ${DB_PASSWORD:-${SERVICE_HEX_32_5}}
       REDIS_HOST: ${REDIS_HOST:-redis:6379}
