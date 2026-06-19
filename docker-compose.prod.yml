@@ -97,6 +97,8 @@ services:
       dockerfile: Dockerfile.nanomq
     environment:
       NANOMQ_CONF_PATH: /etc/nanomq/nanomq.conf
+    volumes:
+      - /data/coolify/proxy/certs/mqtt.hydro.netoasis.dedyn.io:/etc/nanomq/certs
     restart: on-failure:3
     ports:
       - "1883:1883"
