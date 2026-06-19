@@ -28,7 +28,7 @@ public class StageDataInit implements ApplicationRunner {
 
   @Override
   public void run(@NonNull ApplicationArguments args) {
-    if (deviceRepository.findByKey("HYDRO-AE70F").isEmpty()) {
+    if (deviceRepository.findByKey(device1Key).isEmpty()) {
       deviceRepository.save(Device.builder()
           .key(device1Key)
           .macAddress("00:11:22:33:44:55")
@@ -39,7 +39,7 @@ public class StageDataInit implements ApplicationRunner {
           .location("Greenhouse")
           .build());
     }
-    if (deviceRepository.findByKey("HYDRO-BB80G").isEmpty()) {
+    if (deviceRepository.findByKey(device2Key).isEmpty()) {
       deviceRepository.save(Device.builder()
           .key(device2Key)
           .macAddress("66:77:88:99:AA:BB")
