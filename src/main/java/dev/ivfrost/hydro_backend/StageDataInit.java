@@ -5,6 +5,7 @@ import dev.ivfrost.hydro_backend.devices.internal.DeviceRepository;
 import dev.ivfrost.hydro_backend.devices.internal.SecretHashUtil;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
@@ -16,15 +17,23 @@ import org.springframework.stereotype.Component;
 public class StageDataInit implements ApplicationRunner {
 
   private final DeviceRepository deviceRepository;
+  @Value("${seed.device1.key}")
+  private String device1Key;
+  @Value("${seed.device1.secret}")
+  private String device1Secret;
+  @Value("${seed.device2.key}")
+  private String device2Key;
+  @Value("${seed.device2.secret}")
+  private String device2Secret;
 
   @Override
   public void run(@NonNull ApplicationArguments args) {
     if (deviceRepository.findByKey("HYDRO-AE70F").isEmpty()) {
       deviceRepository.save(Device.builder()
-          .key("HYDRO-AE70F")
+          .key(device1Key)
           .macAddress("00:11:22:33:44:55")
           .firmware("1.0.0")
-          .secretHash(SecretHashUtil.hash("a9fe0a11f0e3c57f8bf59ca78d25599d"))
+          .secretHash(SecretHashUtil.hash(device1Secret))
           .technicalName("hydrolink-esp32")
           .friendlyName("Greenhouse Irrigation Controller")
           .location("Greenhouse")
@@ -32,10 +41,10 @@ public class StageDataInit implements ApplicationRunner {
     }
     if (deviceRepository.findByKey("HYDRO-BB80G").isEmpty()) {
       deviceRepository.save(Device.builder()
-          .key("HYDRO-BB80G")
+          .key(device2Key)
           .macAddress("66:77:88:99:AA:BB")
           .firmware("1.0.0")
-          .secretHash(SecretHashUtil.hash("b8fe0a11f0e3c57f8bf59ca78d25599d"))
+          .secretHash(SecretHashUtil.hash(device2Secret))
           .technicalName("hydrolink-esp32")
           .friendlyName("Garden Irrigation Controller")
           .location("Garden")

@@ -29,9 +29,9 @@ class MqttListenerService {
   private String mqttClientId;
   @Value("${mqtt.topic.wildcard}")
   private String mqttTopicWildcard;
-  @Value("${mqtt.username}")
+  @Value("${api.mqtt.username}")
   private String mqttUsername;
-  @Value("${mqtt.password}")
+  @Value("${api.mqtt.password}")
   private String mqttPassword;
 
   private MqttClient client;
