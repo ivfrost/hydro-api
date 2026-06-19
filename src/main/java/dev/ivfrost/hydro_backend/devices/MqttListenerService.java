@@ -25,10 +25,10 @@ class MqttListenerService {
 
   @Value("${mqtt.broker.url}")
   private String mqttBrokerUrl;
-  @Value("${mqtt.client.id}")
-  private String mqttClientId;
   @Value("${mqtt.topic.wildcard}")
   private String mqttTopicWildcard;
+  @Value("${api.mqtt.client.id}")
+  private String mqttClientId;
   @Value("${api.mqtt.username}")
   private String mqttUsername;
   @Value("${api.mqtt.password}")

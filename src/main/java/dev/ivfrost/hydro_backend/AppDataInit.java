@@ -26,9 +26,9 @@ public class AppDataInit implements ApplicationRunner {
   private String adminEmail;
   @Value("${seed.admin.password}")
   private String adminPassword;
-  @Value("${mqtt.username}")
+  @Value("${api.mqtt.username}")
   private String apiMqttUsername;
-  @Value("${mqtt.password}")
+  @Value("${api.mqtt.password}")
   private String apiMqttPassword;
 
   @Override

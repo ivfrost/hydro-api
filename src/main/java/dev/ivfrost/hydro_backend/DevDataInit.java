@@ -26,11 +26,11 @@ public class DevDataInit implements ApplicationRunner {
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
   private final DeviceRepository deviceRepository;
-  @Value("${mqtt.username}")
+  @Value("${api.mqtt.username}")
   private String mqttUsername;
-  @Value("${mqtt.password}")
+  @Value("${api.mqtt.password}")
   private String mqttPassword;
-  @Value("${mqtt.client.id}")
+  @Value("${api.mqtt.client.id}")
   private String mqttClientId;
 
   @Override
