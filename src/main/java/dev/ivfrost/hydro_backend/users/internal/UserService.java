@@ -3,6 +3,7 @@ package dev.ivfrost.hydro_backend.users.internal;
 import com.auth0.jwt.interfaces.Claim;
 import dev.ivfrost.hydro_backend.devices.DeviceLinkRequest;
 import dev.ivfrost.hydro_backend.devices.DeviceResponse;
+import dev.ivfrost.hydro_backend.devices.DeviceUnlinkRequest;
 import dev.ivfrost.hydro_backend.tokens.JWTUtil;
 import dev.ivfrost.hydro_backend.tokens.MqttTokenPayload;
 import dev.ivfrost.hydro_backend.tokens.TokenPayload;
@@ -392,7 +393,7 @@ public class UserService {
   /*
    * Unlink a device from the currently authenticated user.
    */
-  void unlinkDeviceFromCurrentUser(DeviceLinkRequest req) {
+  void unlinkDeviceFromCurrentUser(DeviceUnlinkRequest req) {
     deviceLinkProvider.unlinkDevice(req, getCurrentUserId());
   }
 

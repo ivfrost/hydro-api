@@ -3,6 +3,7 @@ package dev.ivfrost.hydro_backend.users.internal;
 import dev.ivfrost.hydro_backend.ApiResponse;
 import dev.ivfrost.hydro_backend.devices.DeviceLinkRequest;
 import dev.ivfrost.hydro_backend.devices.DeviceResponse;
+import dev.ivfrost.hydro_backend.devices.DeviceUnlinkRequest;
 import dev.ivfrost.hydro_backend.tokens.TokenResponse;
 import dev.ivfrost.hydro_backend.users.UserAuthRequest;
 import dev.ivfrost.hydro_backend.users.UserMqttResponse;
@@ -249,9 +250,9 @@ public class UserController {
   @Operation(
       summary = "Unlink device from current user",
       description = "Unlinks a device from the currently authenticated user.")
-  @DeleteMapping("/me/devices/link")
+  @DeleteMapping("/me/devices/unlink")
   public ResponseEntity<ApiResponse<Void>> unlinkDeviceFromCurrentUser(
-      @Valid @RequestBody DeviceLinkRequest req) {
+      @Valid @RequestBody DeviceUnlinkRequest req) {
     userService.unlinkDeviceFromCurrentUser(req);
     return ResponseEntity.status(HttpStatus.OK)
         .body(ApiResponse.success(HttpStatus.OK, "Device unlinked successfully"));

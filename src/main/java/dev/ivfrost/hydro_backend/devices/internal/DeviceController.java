@@ -47,7 +47,7 @@ public class DeviceController {
   public ResponseEntity<ApiResponse<Void>> linkDeviceById(
       @RequestBody @Valid DeviceLinkRequest linkDeviceRequest,
       @PathVariable Long userId) {
-    deviceService.linkDevice(linkDeviceRequest, userId, false);
+    deviceService.linkDevice(linkDeviceRequest, userId);
     return ResponseEntity.status(HttpStatus.OK)
         .body(ApiResponse.success(HttpStatus.OK, "Device linked to user successfully"));
   }

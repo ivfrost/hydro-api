@@ -90,36 +90,44 @@ public class DeviceService {
    * @throws DeviceNotFoundException if the device is not found
    */
   @Transactional
-  public void linkDevice(DeviceLinkRequest req, Long userId, boolean unlink) {
+  public void linkDevice(DeviceLinkRequest req, Long userId) {
 
     // Fetch unlinked device by secret hash
     String encryptedInput = encryptionUtil.encrypt(req.secret());
     Device device = deviceRepository.findBySecret(encryptedInput)
         .orElseThrow(() -> new DeviceNotFoundException("Device not found"));
 
-    if (!unlink) {
-      // Linking
-      if (device.getUserId() != null) {
-        throw new DeviceLinkException("Device is already linked to a user");
-      }
-
-      device.setUserId(userId);
-      device.setLinkedAt(Instant.now());
-      device.setDisplayOrder(calculateDeviceOrder(userId));
-      deviceRepository.save(device);
-
-    } else {
-      // Unlinking
-      if (device.getUserId() == null || !Objects.equals(device.getUserId(), userId)) {
-        throw new DeviceLinkException("Device is not linked to this user");
-      }
-
-      device.setUserId(null);
-      device.setDisplayOrder(0L);
-      deviceRepository.save(device);
+    if (device.getUserId() != null) {
+      throw new DeviceLinkException("Device is already linked to a user");
     }
 
+    device.setUserId(userId);
+    device.setLinkedAt(Instant.now());
+    device.setDisplayOrder(calculateDeviceOrder(userId));
+    deviceRepository.save(device);
     evictDeviceCaches(device.getId(), userId);
+  }
+
+  /**
+   * Unlinks a device from a user by device ID. Only the owner can unlink their device.
+   *
+   * @param deviceId the ID of the device to unlink
+   * @throws DeviceNotFoundException if the device is not found
+   * @throws IllegalArgumentException if the device does not belong to the user
+   */
+  @Transactional
+  public void unlinkDevice(Long deviceId, Long userId) {
+    Device device = deviceRepository.findById(deviceId)
+        .orElseThrow(() -> new DeviceNotFoundException(deviceId));
+
+    if (device.getUserId() == null || !Objects.equals(device.getUserId(), userId)) {
+      throw new DeviceLinkException("Device is not linked to this user");
+    }
+
+    device.setUserId(null);
+    device.setDisplayOrder(0L);
+    deviceRepository.save(device);
+    evictDeviceCaches(deviceId, userId);
   }
 
   /**
