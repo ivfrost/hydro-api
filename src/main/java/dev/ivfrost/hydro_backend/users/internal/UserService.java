@@ -273,17 +273,44 @@ public class UserService {
     User user = userRepository.findById(userId)
         .orElseThrow(() -> new AuthenticationCredentialsNotFoundException(
             "User with ID " + userId + " not found."));
+
     if (!user.isEnabled()) {
       throw new UserDisabledException(userId);
     }
+    boolean isChangingPassword = req.password() != null && !req.password().isBlank();
+    boolean isChangingEmail = req.email() != null && !req.email().isBlank() && !req.email().trim().toLowerCase().equals(user.getEmail());
+
+    if (isChangingPassword || isChangingEmail) {
+      if (req.currentPassword() == null || req.currentPassword().isBlank()) {
+        throw new IllegalArgumentException("Current password must be provided to update credentials.");
+      }
+
+      if (!passwordEncoder.matches(req.currentPassword(), user.getPassword())) {
+        log.debug("Password mismatch for user with email: {}", user.getEmail());
+        throw new BadCredentialsException("Invalid credentials");
+      }
+
+      // If changing password, encode and update it
+      if (isChangingPassword) {
+        user.setPassword(passwordEncoder.encode(req.password()));
+      }
+
+      // If changing email, check if the new email is already in use and update it
+      if (isChangingEmail) {
+        String cleanEmail = req.email().trim().toLowerCase();
+        boolean emailExists = userRepository.existsByEmail(cleanEmail);
+        if (emailExists) {
+          throw new IllegalArgumentException("Email address is already in use by another account.");
+        }
+        user.setEmail(cleanEmail);
+      }
+    }
+
     if (req.username() != null && !req.username().isBlank()) {
       user.setUsername(req.username());
     }
     if (req.fullName() != null && !req.fullName().isBlank()) {
       user.setFullName(req.fullName());
-    }
-    if (req.email() != null && !req.email().isBlank()) {
-      user.setEmail(req.email());
     }
     if (req.phoneNumber() != null) {
       user.setPhoneNumber(req.phoneNumber());

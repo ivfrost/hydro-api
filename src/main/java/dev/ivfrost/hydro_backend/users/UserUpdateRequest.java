@@ -13,6 +13,9 @@ public record UserUpdateRequest(
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     String password,
 
+    @Size(min = 8, max = 42)
+    String currentPassword,
+
     @Size(min = 6, max = 40)
     String fullName,
 

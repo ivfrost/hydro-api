@@ -23,14 +23,13 @@ public class UserResponse {
   @NotNull
   String email;
 
-  // must be present (not null) but may be empty string
-  @NotNull
   String profilePictureUrl;
 
   // must be present (not null) but may be empty string
   @NotNull
   String phoneNumber;
 
+  // must be present (not null) but may be empty string
   @NotNull
   String address;
 
