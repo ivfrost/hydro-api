@@ -4,6 +4,8 @@ services:
       context: .
       target: production
     restart: on-failure:3
+    expose:
+      - "8080"
     depends_on:
       postgres:
         condition: service_healthy
